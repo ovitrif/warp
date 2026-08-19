@@ -974,6 +974,7 @@ impl TabGroupColorMode {
 
 struct GroupHeaderProps<'a> {
     tab_index: usize,
+    tab_count: usize,
     pane_group: &'a PaneGroup,
     is_being_renamed: bool,
     rename_editor: ViewHandle<EditorView>,
@@ -2198,6 +2199,17 @@ fn render_tab_group_internal(
         pane_group_id,
         pane_id: pane_group.focused_pane_id(app),
     };
+    let show_header = should_show_tab_group_header(
+        has_custom_title,
+        is_being_renamed,
+        visible_pane_ids.len(),
+    );
+    let has_tab_level_header = uses_outer_group_container && show_header;
+    let paint_shortcut_on_pane_rows = !has_tab_level_header;
+    let tab_count = workspace.tabs.len();
+    let pane_row_shortcut_binding = paint_shortcut_on_pane_rows
+        .then(|| tab_activate_binding_name(tab_index, tab_count))
+        .flatten();
 
     let mut group_element = Hoverable::new(group_mouse_state, move |group_state| {
         // GroupedTabs: stack panes flush in Panes view.
@@ -2266,7 +2278,7 @@ fn render_tab_group_internal(
                     None,
                     tab.pinned,
                     group_state.is_hovered(),
-                    tab_activate_binding_name(tab_index, workspace.tabs.len()),
+                    pane_row_shortcut_binding,
                     app,
                 ) else {
                     return Empty::new().finish();
@@ -2326,7 +2338,7 @@ fn render_tab_group_internal(
                     is_pane_being_renamed.then_some(workspace.pane_rename_editor.clone()),
                     tab.pinned,
                     group_state.is_hovered(),
-                    tab_activate_binding_name(tab_index, workspace.tabs.len()),
+                    pane_row_shortcut_binding,
                     app,
                 ) else {
                     continue;
@@ -2347,11 +2359,6 @@ fn render_tab_group_internal(
             rows.finish()
         };
 
-        let show_header = should_show_tab_group_header(
-            has_custom_title,
-            is_being_renamed,
-            visible_pane_ids.len(),
-        );
         let group_content = if uses_outer_group_container {
             let mut group = Flex::column()
                 .with_main_axis_size(MainAxisSize::Min)
@@ -2360,6 +2367,7 @@ fn render_tab_group_internal(
                 group.add_child(render_group_header(
                     GroupHeaderProps {
                         tab_index,
+                        tab_count,
                         pane_group,
                         is_being_renamed,
                         rename_editor: rename_editor.clone(),
@@ -3268,6 +3276,7 @@ fn render_grouped_tab_container(
 fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn Element> {
     let GroupHeaderProps {
         tab_index,
+        tab_count,
         pane_group,
         is_being_renamed,
         rename_editor,
@@ -3283,9 +3292,16 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
     };
     let font_family = appearance.ui_font_family();
     let title_color = theme.sub_text_color(theme.background());
+    let hint_label = if reveals_tab_shortcut_hints(app) {
+        tab_activate_binding_name(tab_index, tab_count)
+            .and_then(|name| keybinding_name_to_display_string(name, app))
+    } else {
+        None
+    };
+    let hint_color = title_color;
 
     Hoverable::new(header_mouse_state, move |_header_state| {
-        Container::new(if is_being_renamed {
+        let title_el: Box<dyn Element> = if is_being_renamed {
             TextInput::new(
                 rename_editor.clone(),
                 UiComponentStyles::default()
@@ -3300,15 +3316,34 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
                 .with_clip(ClipConfig::ellipsis())
                 .with_color(title_color.into())
                 .finish()
-        })
-        .with_padding(
-            Padding::uniform(0.)
-                .with_left(GROUP_HORIZONTAL_PADDING)
-                .with_right(GROUP_HORIZONTAL_PADDING)
-                .with_top(GROUP_HEADER_VERTICAL_PADDING)
-                .with_bottom(GROUP_HEADER_VERTICAL_PADDING),
-        )
-        .finish()
+        };
+        let header = Container::new(title_el)
+            .with_padding(
+                Padding::uniform(0.)
+                    .with_left(GROUP_HORIZONTAL_PADDING)
+                    .with_right(GROUP_HORIZONTAL_PADDING)
+                    .with_top(GROUP_HEADER_VERTICAL_PADDING)
+                    .with_bottom(GROUP_HEADER_VERTICAL_PADDING),
+            )
+            .finish();
+        if let Some(label) = hint_label.clone() {
+            let hint = Text::new_inline(label, font_family, 10.)
+                .with_color(hint_color.into())
+                .finish();
+            let mut stack = Stack::new().with_child(header);
+            stack.add_positioned_child(
+                hint,
+                OffsetPositioning::offset_from_parent(
+                    vec2f(-GROUP_HORIZONTAL_PADDING, 0.),
+                    ParentOffsetBounds::ParentByPosition,
+                    ParentAnchor::MiddleRight,
+                    ChildAnchor::MiddleRight,
+                ),
+            );
+            stack.finish()
+        } else {
+            header
+        }
     })
     .on_click(move |ctx, _, _| {
         if !is_being_renamed {
