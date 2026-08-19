@@ -94,6 +94,7 @@ const MAX_PANEL_WIDTH_RATIO: f32 = 0.5;
 const DETAIL_SIDECAR_SECTION_PADDING: f32 = 12.;
 const DETAIL_SIDECAR_SECTION_GAP: f32 = 4.;
 const GROUP_HEADER_VERTICAL_PADDING: f32 = 4.;
+const GROUP_HEADER_FONT_SIZE: f32 = 10.;
 const GROUP_HORIZONTAL_PADDING: f32 = 8.;
 const GROUP_BODY_BOTTOM_PADDING: f32 = 8.;
 const GROUP_ITEM_SPACING: f32 = 4.;
@@ -3289,36 +3290,39 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
             .build()
             .finish()
         } else {
-            Text::new_inline(title.clone(), font_family, 10.)
+            Text::new_inline(title.clone(), font_family, GROUP_HEADER_FONT_SIZE)
                 .with_clip(ClipConfig::ellipsis())
                 .with_color(title_color.into())
                 .finish()
         };
-        let mut row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(Shrinkable::new(1., title_el).finish());
+        let header = Container::new(title_el)
+            .with_padding(
+                Padding::uniform(0.)
+                    .with_left(GROUP_HORIZONTAL_PADDING)
+                    .with_right(GROUP_HORIZONTAL_PADDING)
+                    .with_top(GROUP_HEADER_VERTICAL_PADDING)
+                    .with_bottom(GROUP_HEADER_VERTICAL_PADDING),
+            )
+            .finish();
+        // Overlay so the 10px hint cannot grow the header and shove pane rows.
         if let Some(label) = hint_label.clone() {
-            row.add_child(
-                Container::new(
-                    Text::new_inline(label, font_family, 12.)
-                        .with_color(hint_color.into())
-                        .finish(),
-                )
-                .with_margin_left(4.)
-                .finish(),
+            let hint = Text::new_inline(label, font_family, GROUP_HEADER_FONT_SIZE)
+                .with_color(hint_color.into())
+                .finish();
+            let mut stack = Stack::new().with_child(header);
+            stack.add_positioned_overlay_child(
+                hint,
+                OffsetPositioning::offset_from_parent(
+                    vec2f(-GROUP_HORIZONTAL_PADDING, 0.),
+                    ParentOffsetBounds::ParentByPosition,
+                    ParentAnchor::MiddleRight,
+                    ChildAnchor::MiddleRight,
+                ),
             );
+            stack.finish()
+        } else {
+            header
         }
-        Container::new(row.finish())
-        .with_padding(
-            Padding::uniform(0.)
-                .with_left(GROUP_HORIZONTAL_PADDING)
-                .with_right(GROUP_HORIZONTAL_PADDING)
-                .with_top(GROUP_HEADER_VERTICAL_PADDING)
-                .with_bottom(GROUP_HEADER_VERTICAL_PADDING),
-        )
-        .finish()
     })
     .on_click(move |ctx, _, _| {
         if !is_being_renamed {
@@ -3478,6 +3482,7 @@ fn render_synced_inputs_indicator() -> Box<dyn Element> {
 }
 
 /// Whether a row is eligible to surface the switch-to-tab shortcut hint.
+#[cfg(test)]
 fn shows_shortcut_hint(modifier_held: bool, tab_index: usize, tab_count: usize) -> bool {
     modifier_held && crate::tab::tab_shortcut_binding_name(tab_index, tab_count).is_some()
 }
