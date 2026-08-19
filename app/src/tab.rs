@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -76,6 +76,36 @@ pub(crate) const TAB_ACTIVATE_BINDING_NAMES: [&str; 8] = [
     "workspace:activate_eighth_tab",
 ];
 
+pub(crate) const TAB_LAST_ACTIVATE_BINDING_NAME: &str = "workspace:activate_last_tab";
+
+/// Show delay so a tap of Cmd for Cmd+C does not flash hints (Codex-style).
+pub(crate) const TAB_SHORTCUT_HINT_SHOW_DELAY: Duration = Duration::from_millis(100);
+
+/// Binding that `cmdorctrl-N` maps to for this tab, if any.
+pub(crate) fn tab_shortcut_binding_name(
+    tab_index: usize,
+    tab_count: usize,
+) -> Option<&'static str> {
+    if tab_index < TAB_ACTIVATE_BINDING_NAMES.len() {
+        Some(TAB_ACTIVATE_BINDING_NAMES[tab_index])
+    } else if tab_count >= 9 && tab_index + 1 == tab_count {
+        Some(TAB_LAST_ACTIVATE_BINDING_NAME)
+    } else {
+        None
+    }
+}
+
+pub(crate) fn tab_shortcut_hint_label(
+    tab_index: usize,
+    tab_count: usize,
+    ctx: &AppContext,
+) -> Option<String> {
+    if !reveals_tab_shortcut_hints(ctx) {
+        return None;
+    }
+    keybinding_name_to_display_string(tab_shortcut_binding_name(tab_index, tab_count)?, ctx)
+}
+
 /// Modifier kinds relevant to revealing tab shortcut hints. The Super kind is
 /// the Cmd key on macOS and the Windows/Super key elsewhere; a `Keystroke`'s
 /// `cmd` and `meta` flags both correspond to it.
@@ -128,6 +158,9 @@ pub(crate) fn reveals_shortcut_hints(
 #[derive(Default)]
 pub struct TabShortcutModifierState {
     held_keys: RefCell<HashSet<KeyCode>>,
+    /// Bumped on every hold-set change so a delayed show can ignore a tap that
+    /// was already released.
+    hold_generation: Cell<u64>,
 }
 
 impl TabShortcutModifierState {
@@ -138,11 +171,23 @@ impl TabShortcutModifierState {
     /// Returns whether the held-key set changed.
     pub fn set_key_held(&self, key_code: KeyCode, pressed: bool) -> bool {
         let mut held_keys = self.held_keys.borrow_mut();
-        if pressed {
+        let changed = if pressed {
             held_keys.insert(key_code)
         } else {
             held_keys.remove(&key_code)
+        };
+        if changed {
+            self.hold_generation.set(self.hold_generation.get() + 1);
         }
+        changed
+    }
+
+    pub fn hold_generation(&self) -> u64 {
+        self.hold_generation.get()
+    }
+
+    pub fn has_held_modifier(&self) -> bool {
+        !self.held_keys.borrow().is_empty()
     }
 
     /// Clears all held keys and returns whether the held-key set changed.
@@ -181,6 +226,8 @@ pub(crate) fn reveals_tab_shortcut_hints(ctx: &AppContext) -> bool {
     }
     let binding_kinds: HashSet<_> = TAB_ACTIVATE_BINDING_NAMES
         .iter()
+        .copied()
+        .chain(std::iter::once(TAB_LAST_ACTIVATE_BINDING_NAME))
         .filter_map(|name| keybinding_name_to_keystroke(name, ctx))
         .flat_map(|keystroke| keystroke_modifier_kinds(&keystroke))
         .collect();
@@ -1148,12 +1195,7 @@ impl<'a> TabComponent<'a> {
             .as_ref(ctx)
             .is_terminal_pane_being_shared(ctx);
         let should_show_indicators = *TabSettings::as_ref(ctx).show_indicators.value();
-        let shortcut_hint_label =
-            if reveals_tab_shortcut_hints(ctx) && tab_index < TAB_ACTIVATE_BINDING_NAMES.len() {
-                keybinding_name_to_display_string(TAB_ACTIVATE_BINDING_NAMES[tab_index], ctx)
-            } else {
-                None
-            };
+        let shortcut_hint_label = tab_shortcut_hint_label(tab_index, tab_bar.tab_count, ctx);
         let are_inputs_synced = SyncedInputState::as_ref(ctx)
             .should_sync_this_pane_group(tab.pane_group.id(), tab.pane_group.window_id(ctx));
 

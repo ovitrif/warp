@@ -1175,25 +1175,34 @@ fn synced_inputs_indicator_hidden_on_non_terminal_rows() {
 
 #[test]
 fn shortcut_hint_shown_when_modifier_held_within_first_eight_tabs() {
-    assert!(shows_shortcut_hint(true, 0));
+    assert!(shows_shortcut_hint(true, 0, 8));
     assert!(shows_shortcut_hint(
         true,
-        TAB_ACTIVATE_BINDING_NAMES.len() - 1
+        TAB_ACTIVATE_BINDING_NAMES.len() - 1,
+        8
     ));
 }
 
 #[test]
 fn shortcut_hint_hidden_when_modifier_not_held() {
-    assert!(!shows_shortcut_hint(false, 0));
+    assert!(!shows_shortcut_hint(false, 0, 8));
 }
 
 #[test]
-fn shortcut_hint_hidden_beyond_eighth_tab() {
-    assert!(!shows_shortcut_hint(true, TAB_ACTIVATE_BINDING_NAMES.len()));
+fn shortcut_hint_hidden_beyond_eighth_tab_when_not_last() {
+    assert!(!shows_shortcut_hint(true, TAB_ACTIVATE_BINDING_NAMES.len(), 10));
     assert!(!shows_shortcut_hint(
         true,
-        TAB_ACTIVATE_BINDING_NAMES.len() + 1
+        TAB_ACTIVATE_BINDING_NAMES.len() + 1,
+        12
     ));
+}
+
+#[test]
+fn shortcut_hint_shown_on_last_tab_when_nine_or_more() {
+    assert!(shows_shortcut_hint(true, 8, 9));
+    assert!(shows_shortcut_hint(true, 11, 12));
+    assert!(!shows_shortcut_hint(true, 8, 8));
 }
 
 #[test]

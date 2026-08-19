@@ -56,8 +56,8 @@ use crate::pane_group::{
 };
 use crate::safe_triangle::SafeTriangle;
 use crate::tab::{
-    SelectedTabColor, TAB_ACTIVATE_BINDING_NAMES, TAB_INDICATOR_SYNCED_COLOR, TabData,
-    reveals_tab_shortcut_hints, tab_position_id,
+    SelectedTabColor, TAB_INDICATOR_SYNCED_COLOR, TabData, tab_position_id,
+    tab_shortcut_hint_label,
 };
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::session_settings::SessionSettings;
@@ -412,6 +412,8 @@ fn render_pane_row_element(
         is_pinned,
         container_is_hovered,
         tab_index: _,
+        tab_count: _,
+        show_tab_shortcut: _,
     } = props;
     let is_selected = is_active_tab && is_focused;
     let show_pin = FeatureFlag::PinnedTabs.is_enabled() && is_pinned && !container_is_hovered;
@@ -858,6 +860,8 @@ struct PaneProps<'a> {
     /// The pin icon is hidden when a tab is hovered.
     container_is_hovered: bool,
     tab_index: usize,
+    tab_count: usize,
+    show_tab_shortcut: bool,
 }
 
 struct PaneRowState {
@@ -974,6 +978,7 @@ impl TabGroupColorMode {
 
 struct GroupHeaderProps<'a> {
     tab_index: usize,
+    tab_count: usize,
     pane_group: &'a PaneGroup,
     is_being_renamed: bool,
     rename_editor: ViewHandle<EditorView>,
@@ -1241,6 +1246,8 @@ impl VerticalTabsPanelState {
                                 tab.pinned,
                                 false,
                                 *tab_index,
+                                0,
+                                false,
                                 app,
                             )
                             .is_some_and(|props| pane_matches_query(&props, &query_lower, app))
@@ -1849,6 +1856,8 @@ fn render_groups(
                                     tab.pinned,
                                     false,
                                     tab_index,
+                                    0,
+                                    false,
                                     app,
                                 )
                                 .is_some_and(|props| {
@@ -1881,6 +1890,8 @@ fn render_groups(
                                 tab.pinned,
                                 false,
                                 tab_index,
+                                0,
+                                false,
                                 app,
                             )
                             .is_some_and(|props| pane_matches_query(&props, &query_lower, app))
@@ -2172,6 +2183,15 @@ fn render_tab_group_internal(
         pane_group_id,
         pane_id: pane_group.focused_pane_id(app),
     };
+    let show_header = should_show_tab_group_header(
+        has_custom_title,
+        is_being_renamed,
+        visible_pane_ids.len(),
+    );
+    // Panes view paints the shortcut on the tab header when that header exists.
+    // Inner pane rows are not Cmd+N targets.
+    let paint_shortcut_on_pane_rows = !uses_outer_group_container || !show_header;
+    let tab_count = workspace.tabs.len();
 
     let mut group_element = Hoverable::new(group_mouse_state, move |group_state| {
         // GroupedTabs: stack panes flush in Panes view.
@@ -2241,6 +2261,8 @@ fn render_tab_group_internal(
                     tab.pinned,
                     group_state.is_hovered(),
                     tab_index,
+                    tab_count,
+                    paint_shortcut_on_pane_rows,
                     app,
                 ) else {
                     return Empty::new().finish();
@@ -2301,6 +2323,8 @@ fn render_tab_group_internal(
                     tab.pinned,
                     group_state.is_hovered(),
                     tab_index,
+                    tab_count,
+                    paint_shortcut_on_pane_rows,
                     app,
                 ) else {
                     continue;
@@ -2321,11 +2345,6 @@ fn render_tab_group_internal(
             rows.finish()
         };
 
-        let show_header = should_show_tab_group_header(
-            has_custom_title,
-            is_being_renamed,
-            visible_pane_ids.len(),
-        );
         let group_content = if uses_outer_group_container {
             let mut group = Flex::column()
                 .with_main_axis_size(MainAxisSize::Min)
@@ -2334,6 +2353,7 @@ fn render_tab_group_internal(
                 group.add_child(render_group_header(
                     GroupHeaderProps {
                         tab_index,
+                        tab_count,
                         pane_group,
                         is_being_renamed,
                         rename_editor: rename_editor.clone(),
@@ -3238,6 +3258,7 @@ fn render_grouped_tab_container(
 fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn Element> {
     let GroupHeaderProps {
         tab_index,
+        tab_count,
         pane_group,
         is_being_renamed,
         rename_editor,
@@ -3253,9 +3274,11 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
     };
     let font_family = appearance.ui_font_family();
     let title_color = theme.sub_text_color(theme.background());
+    let hint_label = tab_shortcut_hint_label(tab_index, tab_count, app);
+    let hint_color = title_color;
 
     Hoverable::new(header_mouse_state, move |_header_state| {
-        Container::new(if is_being_renamed {
+        let title_el: Box<dyn Element> = if is_being_renamed {
             TextInput::new(
                 rename_editor.clone(),
                 UiComponentStyles::default()
@@ -3270,7 +3293,24 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
                 .with_clip(ClipConfig::ellipsis())
                 .with_color(title_color.into())
                 .finish()
-        })
+        };
+        let mut row = Flex::row()
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(Shrinkable::new(1., title_el).finish());
+        if let Some(label) = hint_label.clone() {
+            row.add_child(
+                Container::new(
+                    Text::new_inline(label, font_family, 12.)
+                        .with_color(hint_color.into())
+                        .finish(),
+                )
+                .with_margin_left(4.)
+                .finish(),
+            );
+        }
+        Container::new(row.finish())
         .with_padding(
             Padding::uniform(0.)
                 .with_left(GROUP_HORIZONTAL_PADDING)
@@ -3437,21 +3477,18 @@ fn render_synced_inputs_indicator() -> Box<dyn Element> {
     .finish()
 }
 
-/// Whether a row is eligible to surface the switch-to-tab shortcut hint: the
-/// reveal modifier is held and the tab falls within the first 8 (the only tabs
-/// with a `cmdorctrl-N` binding). Whether a label is actually shown also
-/// depends on the binding being assigned — see [`shortcut_hint_label`].
-fn shows_shortcut_hint(modifier_held: bool, tab_index: usize) -> bool {
-    modifier_held && tab_index < TAB_ACTIVATE_BINDING_NAMES.len()
+/// Whether a row is eligible to surface the switch-to-tab shortcut hint.
+fn shows_shortcut_hint(modifier_held: bool, tab_index: usize, tab_count: usize) -> bool {
+    modifier_held && crate::tab::tab_shortcut_binding_name(tab_index, tab_count).is_some()
 }
 
 /// Resolves the switch-to-tab shortcut label for a row while the reveal
 /// modifier is held. Returns `None` when no hint should be shown.
 fn shortcut_hint_label(props: &PaneProps<'_>, app: &AppContext) -> Option<String> {
-    if !shows_shortcut_hint(reveals_tab_shortcut_hints(app), props.tab_index) {
+    if !props.show_tab_shortcut {
         return None;
     }
-    keybinding_name_to_display_string(TAB_ACTIVATE_BINDING_NAMES[props.tab_index], app)
+    tab_shortcut_hint_label(props.tab_index, props.tab_count, app)
 }
 
 /// Inline label showing the switch-to-tab keyboard shortcut, mirroring the
@@ -3915,6 +3952,8 @@ impl<'a> PaneProps<'a> {
         is_pinned: bool,
         container_is_hovered: bool,
         tab_index: usize,
+        tab_count: usize,
+        show_tab_shortcut: bool,
         app: &AppContext,
     ) -> Option<Self> {
         let pane = pane_group.pane_by_id(pane_id)?;
@@ -3970,6 +4009,8 @@ impl<'a> PaneProps<'a> {
             is_pinned,
             container_is_hovered,
             tab_index,
+            tab_count,
+            show_tab_shortcut,
         })
     }
 
@@ -6811,6 +6852,8 @@ fn detail_pane_props<'a>(
         // The detail sidecar never renders a tab shortcut hint, so the tab
         // index is unused here; pass the active tab as a harmless stand-in.
         workspace.active_tab_index,
+        workspace.tabs.len(),
+        false,
         app,
     )
 }

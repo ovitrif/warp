@@ -23881,9 +23881,29 @@ impl TypedActionView for Workspace {
             ActivateTab(index) => self.activate_tab(*index, ctx),
             ActivateTabByNumber(num) => self.activate_tab(num.saturating_sub(1), ctx),
             SetTabShortcutModifierKey { key_code, pressed } => {
-                let changed =
-                    TabShortcutModifierState::as_ref(ctx).set_key_held(*key_code, *pressed);
-                if changed {
+                let state = TabShortcutModifierState::as_ref(ctx);
+                let was_empty = !state.has_held_modifier();
+                let changed = state.set_key_held(*key_code, *pressed);
+                if !changed {
+                    return;
+                }
+                if *pressed && was_empty {
+                    let generation = state.hold_generation();
+                    ctx.spawn(
+                        async {
+                            warpui::r#async::Timer::after(
+                                crate::tab::TAB_SHORTCUT_HINT_SHOW_DELAY,
+                            )
+                            .await;
+                        },
+                        move |_, _, ctx| {
+                            let state = TabShortcutModifierState::as_ref(ctx);
+                            if state.hold_generation() == generation && state.has_held_modifier() {
+                                ctx.notify();
+                            }
+                        },
+                    );
+                } else {
                     ctx.notify();
                 }
             }
