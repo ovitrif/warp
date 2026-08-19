@@ -268,6 +268,7 @@ fn test_detect_known_agents() {
                 ("vibe", CLIAgent::Vibe),
                 ("agy", CLIAgent::Antigravity),
                 ("omp", CLIAgent::OhMyPi),
+                ("grok", CLIAgent::Grok),
                 ("warp", CLIAgent::WarpTui),
                 ("warp-dev", CLIAgent::WarpTui),
                 ("./script/run-tui", CLIAgent::WarpTui),
@@ -657,5 +658,50 @@ fn test_warp_tui_variant_properties() {
     assert_eq!(
         CLIAgent::from_serialized_name(&CLIAgent::WarpTui.to_serialized_name()),
         CLIAgent::WarpTui
+    );
+}
+
+#[test]
+fn test_grok_matches_binaries_and_paths() {
+    assert!(CLIAgent::Grok.matches_command("grok", None));
+    assert!(CLIAgent::Grok.matches_command("  grok --yolo", None));
+    assert!(CLIAgent::Grok.matches_command("/Users/me/.grok/bin/grok", None));
+    assert!(CLIAgent::Grok.matches_command("~/.local/bin/grok --resume abc", None));
+    assert!(
+        CLIAgent::Grok.matches_command("GROK_HOME=/tmp/grok grok", Some(EscapeChar::Backslash),)
+    );
+}
+
+#[test]
+fn test_grok_does_not_match_other_commands() {
+    assert!(!CLIAgent::Grok.matches_command("vim", None));
+    assert!(!CLIAgent::Grok.matches_command("codex", None));
+    assert!(!CLIAgent::Grok.matches_command("grokking", None));
+    assert!(!CLIAgent::Grok.matches_command("mygrok", None));
+    assert!(!CLIAgent::Grok.matches_command("grok-wrapper", None));
+    assert!(!CLIAgent::Grok.matches_command("", None));
+}
+
+#[test]
+fn test_grok_variant_properties() {
+    assert_eq!(CLIAgent::Grok.command_prefix(), "grok");
+    assert_eq!(CLIAgent::Grok.command_prefixes(), &["grok"]);
+    assert_eq!(CLIAgent::Grok.display_name(), "Grok Build");
+    assert_eq!(CLIAgent::Grok.brand_color(), Some(ColorU::black()));
+    assert_eq!(CLIAgent::Grok.icon(), Some(Icon::GrokLogo));
+    assert_eq!(CLIAgent::Grok.brand_icon_color(), ColorU::white());
+    assert_eq!(
+        CLIAgent::Grok.supported_skill_providers(),
+        &[ai::skills::SkillProvider::Agents]
+    );
+    assert!(!CLIAgent::Grok.supports_bash_mode());
+    assert!(CLIAgent::Grok.supports_cli_agent_footer());
+    assert!(matches!(
+        crate::server::telemetry::CLIAgentType::from(CLIAgent::Grok),
+        crate::server::telemetry::CLIAgentType::Grok
+    ));
+    assert_eq!(
+        CLIAgent::from_serialized_name(&CLIAgent::Grok.to_serialized_name()),
+        CLIAgent::Grok
     );
 }

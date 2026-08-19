@@ -1,7 +1,7 @@
 //! CLI agent detection and configuration.
 //!
 //! This module provides types for detecting and working with CLI-based AI agents
-//! like Claude Code, Gemini CLI, Codex, Amp, and Droid.
+//! like Claude Code, Gemini CLI, Codex, Amp, Droid, and Grok Build.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -135,7 +135,15 @@ const MISTRAL_ORANGE: ColorU = ColorU {
     a: 255,
 };
 
-/// Represents a CLI agent (e.g., Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Copilot, Pi, Auggie, Cursor, Goose, Hermes, Mistral Vibe)
+/// Grok / SpaceXAI brand color (black, official black-hole logomark)
+const GROK_COLOR: ColorU = ColorU {
+    r: 0,
+    g: 0,
+    b: 0,
+    a: 255,
+};
+
+/// Represents a CLI agent (e.g., Claude Code, Gemini CLI, Codex, Amp, Droid, OpenCode, Copilot, Pi, Auggie, Cursor, Goose, Hermes, Mistral Vibe, Grok Build)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence, Serialize, Deserialize)]
 pub enum CLIAgent {
     Claude,
@@ -153,6 +161,8 @@ pub enum CLIAgent {
     Hermes,
     Vibe,
     Antigravity,
+    /// SpaceXAI's Grok Build CLI (`grok`).
+    Grok,
     /// Warp's own headless TUI.
     WarpTui,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
@@ -178,6 +188,7 @@ impl CLIAgent {
             CLIAgent::Hermes => &["hermes"],
             CLIAgent::Vibe => &["vibe", "vibe-acp"],
             CLIAgent::Antigravity => &["agy"],
+            CLIAgent::Grok => &["grok"],
             CLIAgent::WarpTui => &[
                 "warp",
                 "warp-preview",
@@ -241,6 +252,7 @@ impl CLIAgent {
             CLIAgent::Hermes => "Hermes",
             CLIAgent::Vibe => "Mistral Vibe",
             CLIAgent::Antigravity => "Antigravity",
+            CLIAgent::Grok => "Grok Build",
             CLIAgent::WarpTui => "Warp TUI",
             CLIAgent::Unknown => "CLI Agent",
         }
@@ -267,6 +279,7 @@ impl CLIAgent {
             // up in a follow-up once an officially licensed SVG is available.
             CLIAgent::Vibe => None,
             CLIAgent::Antigravity => Some(Icon::AntigravityLogo),
+            CLIAgent::Grok => Some(Icon::GrokLogo),
             CLIAgent::WarpTui => Some(Icon::Warp),
             CLIAgent::Unknown => None,
         }
@@ -300,6 +313,7 @@ impl CLIAgent {
             CLIAgent::Hermes => &[SkillProvider::Agents],
             CLIAgent::Vibe => &[SkillProvider::Agents],
             CLIAgent::Antigravity => &[],
+            CLIAgent::Grok => &[SkillProvider::Agents],
             CLIAgent::WarpTui => &[],
             CLIAgent::Unknown => &[],
         }
@@ -350,6 +364,7 @@ impl CLIAgent {
             CLIAgent::Hermes => Some(HERMES_PURPLE),
             CLIAgent::Vibe => Some(MISTRAL_ORANGE),
             CLIAgent::Antigravity => Some(ANTIGRAVITY_COLOR),
+            CLIAgent::Grok => Some(GROK_COLOR),
             CLIAgent::WarpTui => Some(ColorU::black()),
             CLIAgent::Unknown => None,
         }
@@ -626,6 +641,7 @@ impl From<CLIAgent> for CLIAgentType {
             CLIAgent::Hermes => CLIAgentType::Hermes,
             CLIAgent::Vibe => CLIAgentType::Vibe,
             CLIAgent::Antigravity => CLIAgentType::Antigravity,
+            CLIAgent::Grok => CLIAgentType::Grok,
             CLIAgent::WarpTui => CLIAgentType::WarpTui,
             CLIAgent::Unknown => CLIAgentType::Unknown,
         }

@@ -246,6 +246,19 @@ fn droid_default_handler_forwards_permission_request() {
 }
 
 #[test]
+fn grok_notifications_are_supported() {
+    assert!(is_agent_supported(&CLIAgent::Grok));
+    let mut handler = create_handler(&CLIAgent::Grok).expect("should create handler");
+    let stop_body = r#"{"v":1,"agent":"grok","event":"stop","session_id":"sess-grok"}"#;
+    let parsed_stop = handler
+        .try_parse(Some(CLI_AGENT_NOTIFICATION_SENTINEL), stop_body, false)
+        .expect("should parse stop");
+    assert_eq!(parsed_stop.agent, CLIAgent::Grok);
+    assert_eq!(parsed_stop.event, CLIAgentEventType::Stop);
+    assert!(handler.handle_event(parsed_stop).is_some());
+}
+
+#[test]
 fn warp_tui_notifications_are_supported() {
     assert!(is_agent_supported(&CLIAgent::WarpTui));
     let mut handler = create_handler(&CLIAgent::WarpTui).expect("should create handler");

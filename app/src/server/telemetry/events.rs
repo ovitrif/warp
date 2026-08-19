@@ -468,6 +468,8 @@ pub enum CLIAgentType {
     Hermes,
     Vibe,
     Antigravity,
+    /// SpaceXAI's Grok Build CLI.
+    Grok,
     /// Warp's own headless TUI, targeted by the code review panel as a CLI-agent-equivalent destination.
     WarpTui,
     Unknown,

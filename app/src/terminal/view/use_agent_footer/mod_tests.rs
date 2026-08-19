@@ -455,6 +455,14 @@ fn test_rich_input_submit_strategy_for_hermes_uses_bracketed_paste() {
 }
 
 #[test]
+fn test_rich_input_submit_strategy_for_grok_uses_delayed_enter() {
+    assert_eq!(
+        rich_input_submit_strategy(CLIAgent::Grok),
+        RichInputSubmitStrategy::DelayedEnter
+    );
+}
+
+#[test]
 fn insert_cli_agent_voice_text_hermes_multiline_uses_bracketed_paste_without_submitting() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
