@@ -1,5 +1,6 @@
 use settings::macros::define_settings_group;
 use settings::{RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud};
+use warp_core::channel::{Channel, ChannelState};
 use warp_errors::{report_error, report_if_error};
 use warpui::keymap::Keystroke;
 use warpui::{AppContext, DisplayIdx, ModelContext};
@@ -75,11 +76,22 @@ define_settings_group!(KeysSettings, settings: [
 ]);
 
 impl KeysSettings {
+    /// Dedicated hotkey window claims an OS-global shortcut. Only one running
+    /// Warp can own it. OSS shares cloud prefs with Stable, so OSS must never
+    /// register or persist changes to this setting (a local disable would sync
+    /// back and turn it off in production).
+    pub(crate) fn may_register_dedicated_hotkey_window() -> bool {
+        ChannelState::channel() != Channel::Oss
+    }
+
     pub fn set_global_hotkey_mode_and_write_to_user_defaults(
         &mut self,
         global_hotkey_mode: &GlobalHotkeyMode,
         ctx: &mut ModelContext<Self>,
     ) {
+        if !Self::may_register_dedicated_hotkey_window() {
+            return;
+        }
         // currently the activation hotkey and quake mode cannot be enabled simultaneously
         // if we enable quake mode, we must disable activation hotkey and vice versa
         let (enable_quake_mode, enable_activation_hotkey) = match global_hotkey_mode {
@@ -102,6 +114,9 @@ impl KeysSettings {
         keystroke: Option<Keystroke>,
         ctx: &mut ModelContext<Self>,
     ) {
+        if !Self::may_register_dedicated_hotkey_window() {
+            return;
+        }
         let mut quake_mode_settings = self.quake_mode_settings.value().clone();
         quake_mode_settings.keybinding = keystroke;
 

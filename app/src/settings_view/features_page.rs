@@ -3455,6 +3455,9 @@ impl FeaturesPageView {
     }
 
     fn enable_quake_mode_global_shortcut(&self, app: &mut AppContext) {
+        if !KeysSettings::may_register_dedicated_hotkey_window() {
+            return;
+        }
         if let Some(shortcut) = &self.quake_mode_keybinding.current_binding {
             app.register_global_shortcut(
                 shortcut.clone(),
@@ -3500,6 +3503,9 @@ impl FeaturesPageView {
     ///   4. self.quake_mode_keybinding and self.activation_hotkey_keybinding
     ///   5. quake_mode_keybinding_editor_state and activation_hotkey_keybinding_editor_state
     fn set_global_hotkey_mode(&mut self, mode: &GlobalHotkeyMode, ctx: &mut ViewContext<Self>) {
+        if !KeysSettings::may_register_dedicated_hotkey_window() {
+            return;
+        }
         ctx.enable_key_bindings_dispatching();
 
         self.reset_quake_mode_keybinding_editor();
@@ -5738,6 +5744,18 @@ impl SettingsWidget for GlobalHotkeyWidget {
                     )
                 },
             );
+            if !KeysSettings::may_register_dedicated_hotkey_window() {
+                column.add_child(
+                    appearance
+                        .ui_builder()
+                        .span(
+                            "This OSS build will not claim the dedicated hotkey window \
+                             (Cmd+Esc). Production Warp keeps that shortcut.",
+                        )
+                        .build()
+                        .finish(),
+                );
+            }
         }
 
         let global_hotkey_mode =
