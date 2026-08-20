@@ -3571,7 +3571,11 @@ fn shortcut_hint_label(props: &PaneProps<'_>, app: &AppContext) -> Option<String
 /// horizontal tab bar's `TabComponent::render_shortcut_hint`.
 fn render_shortcut_hint(label: &str, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
-    Text::new_inline(label.to_string(), appearance.ui_font_family(), 12.)
+    Text::new_inline(
+        label.to_string(),
+        appearance.ui_font_family(),
+        GROUP_HEADER_FONT_SIZE,
+    )
         .with_color(theme.sub_text_color(theme.background()).into())
         .finish()
 }
