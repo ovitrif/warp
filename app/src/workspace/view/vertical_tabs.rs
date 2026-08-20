@@ -94,6 +94,7 @@ const MAX_PANEL_WIDTH_RATIO: f32 = 0.5;
 const DETAIL_SIDECAR_SECTION_PADDING: f32 = 12.;
 const DETAIL_SIDECAR_SECTION_GAP: f32 = 4.;
 const GROUP_HEADER_VERTICAL_PADDING: f32 = 4.;
+const GROUP_HEADER_FONT_SIZE: f32 = 10.;
 const GROUP_HORIZONTAL_PADDING: f32 = 8.;
 const GROUP_BODY_BOTTOM_PADDING: f32 = 8.;
 const GROUP_ITEM_SPACING: f32 = 4.;
@@ -2205,11 +2206,28 @@ fn render_tab_group_internal(
         visible_pane_ids.len(),
     );
     let has_tab_level_header = uses_outer_group_container && show_header;
-    let paint_shortcut_on_pane_rows = !has_tab_level_header;
+    let paint_shortcut_on_pane_rows = should_paint_shortcut_on_pane_rows(
+        display_granularity,
+        has_tab_level_header,
+        pane_ids_to_render.len(),
+        in_tab_group,
+    );
     let tab_count = workspace.tabs.len();
     let pane_row_shortcut_binding = paint_shortcut_on_pane_rows
         .then(|| tab_activate_binding_name(tab_index, tab_count))
         .flatten();
+    let stack_shortcut_label = if !paint_shortcut_on_pane_rows && !has_tab_level_header {
+        if reveals_tab_shortcut_hints(app) {
+            tab_activate_binding_name(tab_index, tab_count)
+                .and_then(|name| keybinding_name_to_display_string(name, app))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let shortcut_font_family = appearance.ui_font_family();
+    let shortcut_color = theme.sub_text_color(theme.background());
 
     let mut group_element = Hoverable::new(group_mouse_state, move |group_state| {
         // GroupedTabs: stack panes flush in Panes view.
@@ -2532,6 +2550,19 @@ fn render_tab_group_internal(
                 ChildAnchor::TopRight,
             ),
         );
+        if let Some(label) = stack_shortcut_label.clone() {
+            stack.add_positioned_child(
+                Text::new_inline(label, shortcut_font_family, GROUP_HEADER_FONT_SIZE)
+                    .with_color(shortcut_color.into())
+                    .finish(),
+                OffsetPositioning::offset_from_parent(
+                    vec2f(-GROUP_HORIZONTAL_PADDING, 0.),
+                    ParentOffsetBounds::ParentByPosition,
+                    ParentAnchor::MiddleRight,
+                    ChildAnchor::MiddleRight,
+                ),
+            );
+        }
         stack.finish()
     })
     .on_right_click(move |ctx, _, position| {
@@ -3500,6 +3531,31 @@ fn render_synced_inputs_indicator() -> Box<dyn Element> {
     .with_width(BADGE_ICON_SIZE)
     .with_height(BADGE_ICON_SIZE)
     .finish()
+}
+
+/// Pane rows get a Cmd+N hint only when the row itself is the tab. Multi-pane
+/// tabs and grouped Panes-view members overlay the hint on the tab stack
+/// instead, so the same shortcut is not repeated on every split.
+fn should_paint_shortcut_on_pane_rows(
+    display_granularity: VerticalTabsDisplayGranularity,
+    has_tab_level_header: bool,
+    pane_row_count: usize,
+    in_tab_group: bool,
+) -> bool {
+    if has_tab_level_header {
+        return false;
+    }
+    if matches!(display_granularity, VerticalTabsDisplayGranularity::Panes)
+        && (pane_row_count > 1 || in_tab_group)
+    {
+        return false;
+    }
+    true
+}
+
+#[cfg(test)]
+fn shows_shortcut_hint(modifier_held: bool, tab_index: usize, tab_count: usize) -> bool {
+    modifier_held && crate::tab::tab_activate_binding_name(tab_index, tab_count).is_some()
 }
 
 /// Resolves the switch-to-tab shortcut label for a row while the reveal

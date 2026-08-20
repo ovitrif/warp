@@ -212,8 +212,12 @@ impl warpui::View for View {
         .on_modifier_state_changed(|ctx, _, key_code, state| {
             if matches!(key_code, KeyCode::ControlLeft | KeyCode::ControlRight) {
                 ctx.dispatch_typed_action(Action::CtrlPressed(matches!(state, KeyState::Pressed)));
+                // Ctrl-hold is the palette's own "alternate list" gesture.
+                return DispatchEventResult::StopPropagation;
             }
-            DispatchEventResult::StopPropagation
+            // Cmd/Super release must reach the workspace so tab shortcut hints
+            // can hide. Stopping every modifier left hints stuck after ⌘⇧P.
+            DispatchEventResult::PropagateToParent
         })
         .finish()
     }
