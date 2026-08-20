@@ -1212,6 +1212,7 @@ fn pane_rows_do_not_repeat_shortcut_when_tab_has_a_header() {
         VerticalTabsDisplayGranularity::Panes,
         true,
         2,
+        false,
     ));
 }
 
@@ -1221,6 +1222,17 @@ fn pane_rows_do_not_repeat_shortcut_for_grouped_multi_pane_tabs() {
         VerticalTabsDisplayGranularity::Panes,
         false,
         3,
+        true,
+    ));
+}
+
+#[test]
+fn grouped_single_pane_tab_uses_stack_overlay_not_row() {
+    assert!(!should_paint_shortcut_on_pane_rows(
+        VerticalTabsDisplayGranularity::Panes,
+        false,
+        1,
+        true,
     ));
 }
 
@@ -1230,11 +1242,13 @@ fn pane_row_gets_shortcut_when_it_is_the_tab() {
         VerticalTabsDisplayGranularity::Panes,
         false,
         1,
+        false,
     ));
     assert!(should_paint_shortcut_on_pane_rows(
         VerticalTabsDisplayGranularity::Tabs,
         false,
         1,
+        false,
     ));
 }
 

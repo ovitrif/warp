@@ -2197,6 +2197,7 @@ fn render_tab_group_internal(
         display_granularity,
         has_tab_level_header,
         pane_ids_to_render.len(),
+        in_tab_group,
     );
     let tab_count = workspace.tabs.len();
     let stack_shortcut_label = if !paint_shortcut_on_pane_rows && !has_tab_level_header {
@@ -2538,10 +2539,10 @@ fn render_tab_group_internal(
                     .with_color(shortcut_color.into())
                     .finish(),
                 OffsetPositioning::offset_from_parent(
-                    vec2f(action_button_x_offset, action_button_y_offset),
+                    vec2f(-GROUP_HORIZONTAL_PADDING, 0.),
                     ParentOffsetBounds::ParentByPosition,
-                    ParentAnchor::TopRight,
-                    ChildAnchor::TopRight,
+                    ParentAnchor::MiddleRight,
+                    ChildAnchor::MiddleRight,
                 ),
             );
         }
@@ -3508,17 +3509,20 @@ fn render_synced_inputs_indicator() -> Box<dyn Element> {
 }
 
 /// Pane rows get a Cmd+N hint only when the row itself is the tab. Multi-pane
-/// tabs in Panes view (including members of a tab group) would otherwise repeat
-/// the same shortcut on every split.
+/// tabs and grouped Panes-view members overlay the hint on the tab stack
+/// instead, so the same shortcut is not repeated on every split.
 fn should_paint_shortcut_on_pane_rows(
     display_granularity: VerticalTabsDisplayGranularity,
     has_tab_level_header: bool,
     pane_row_count: usize,
+    in_tab_group: bool,
 ) -> bool {
     if has_tab_level_header {
         return false;
     }
-    if matches!(display_granularity, VerticalTabsDisplayGranularity::Panes) && pane_row_count > 1 {
+    if matches!(display_granularity, VerticalTabsDisplayGranularity::Panes)
+        && (pane_row_count > 1 || in_tab_group)
+    {
         return false;
     }
     true
@@ -3543,7 +3547,11 @@ fn shortcut_hint_label(props: &PaneProps<'_>, app: &AppContext) -> Option<String
 /// horizontal tab bar's `TabComponent::render_shortcut_hint`.
 fn render_shortcut_hint(label: &str, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
-    Text::new_inline(label.to_string(), appearance.ui_font_family(), 12.)
+    Text::new_inline(
+        label.to_string(),
+        appearance.ui_font_family(),
+        GROUP_HEADER_FONT_SIZE,
+    )
         .with_color(theme.sub_text_color(theme.background()).into())
         .finish()
 }
