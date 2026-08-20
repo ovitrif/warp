@@ -215,10 +215,13 @@ impl super::WarpConfig {
 
     /// This method takes a file name candidate (appends .yaml if missing) and a LaunchConfig as
     /// arguments. It saves the file and returns the filename used if successful.
+    /// When `overwrite` is false, an existing file is rejected so the save modal
+    /// can ask the user to confirm. When true, the YAML is replaced in place.
     #[cfg(feature = "local_fs")]
     pub fn save_new_launch_config(
         file_name: String,
         launch_config: LaunchConfig,
+        overwrite: bool,
     ) -> Result<String> {
         let file_name = if is_config_file(&file_name) {
             file_name.trim().into()
@@ -231,7 +234,7 @@ impl super::WarpConfig {
         };
 
         let path = crate::user_config::launch_configs_dir().join(&file_name);
-        if path.exists() {
+        if path.exists() && !overwrite {
             return Err(anyhow!("File already exists"));
         };
 
