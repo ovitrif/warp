@@ -17,7 +17,8 @@ use super::{
     pane_ids_for_display_granularity, pane_search_text_fragments, preferred_agent_tab_titles,
     push_normalized_unique_summary_label, search_fragments_contain_query,
     select_summary_pane_kind_icons, should_keep_detail_sidecar_visible_for_mouse_position,
-    should_show_tab_group_header, shows_shortcut_hint, shows_synced_inputs_indicator,
+    should_paint_shortcut_on_pane_rows, should_show_tab_group_header, shows_shortcut_hint,
+    shows_synced_inputs_indicator,
     sort_summary_primary_labels_status_first, summary_overflow_count,
     summary_search_text_fragments, terminal_kind_badge_label, terminal_primary_line_data,
     terminal_pull_request_badge_label, terminal_search_text_fragments,
@@ -1203,6 +1204,38 @@ fn shortcut_hint_shown_on_last_tab_when_nine_or_more() {
     assert!(shows_shortcut_hint(true, 8, 9));
     assert!(shows_shortcut_hint(true, 11, 12));
     assert!(!shows_shortcut_hint(true, 8, 8));
+}
+
+#[test]
+fn pane_rows_do_not_repeat_shortcut_when_tab_has_a_header() {
+    assert!(!should_paint_shortcut_on_pane_rows(
+        VerticalTabsDisplayGranularity::Panes,
+        true,
+        2,
+    ));
+}
+
+#[test]
+fn pane_rows_do_not_repeat_shortcut_for_grouped_multi_pane_tabs() {
+    assert!(!should_paint_shortcut_on_pane_rows(
+        VerticalTabsDisplayGranularity::Panes,
+        false,
+        3,
+    ));
+}
+
+#[test]
+fn pane_row_gets_shortcut_when_it_is_the_tab() {
+    assert!(should_paint_shortcut_on_pane_rows(
+        VerticalTabsDisplayGranularity::Panes,
+        false,
+        1,
+    ));
+    assert!(should_paint_shortcut_on_pane_rows(
+        VerticalTabsDisplayGranularity::Tabs,
+        false,
+        1,
+    ));
 }
 
 #[test]

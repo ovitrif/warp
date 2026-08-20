@@ -14691,6 +14691,9 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         self.close_all_overlays(ctx);
+        if TabShortcutModifierState::as_ref(ctx).clear_held_keys() {
+            ctx.notify();
+        }
 
         // Set the shared session viewer state before opening the palette
         // so it can determine which data sources to include (e.g., exclude Files in shared sessions)

@@ -2189,10 +2189,23 @@ fn render_tab_group_internal(
         is_being_renamed,
         visible_pane_ids.len(),
     );
-    // Panes view paints the shortcut on the tab header when that header exists.
-    // Inner pane rows are not Cmd+N targets.
-    let paint_shortcut_on_pane_rows = !uses_outer_group_container || !show_header;
+    let has_tab_level_header = uses_outer_group_container && show_header;
+    // Cmd+N targets tabs. Pane rows only get the hint when that row *is* the tab
+    // (Tabs view, or a single-pane tab with no header). Grouped multi-pane tabs
+    // skip the per-tab header, so the hint is overlaid on the tab stack instead.
+    let paint_shortcut_on_pane_rows = should_paint_shortcut_on_pane_rows(
+        display_granularity,
+        has_tab_level_header,
+        pane_ids_to_render.len(),
+    );
     let tab_count = workspace.tabs.len();
+    let stack_shortcut_label = if !paint_shortcut_on_pane_rows && !has_tab_level_header {
+        tab_shortcut_hint_label(tab_index, tab_count, app)
+    } else {
+        None
+    };
+    let shortcut_font_family = appearance.ui_font_family();
+    let shortcut_color = theme.sub_text_color(theme.background());
 
     let mut group_element = Hoverable::new(group_mouse_state, move |group_state| {
         // GroupedTabs: stack panes flush in Panes view.
@@ -2519,6 +2532,19 @@ fn render_tab_group_internal(
                 ChildAnchor::TopRight,
             ),
         );
+        if let Some(label) = stack_shortcut_label.clone() {
+            stack.add_positioned_overlay_child(
+                Text::new_inline(label, shortcut_font_family, GROUP_HEADER_FONT_SIZE)
+                    .with_color(shortcut_color.into())
+                    .finish(),
+                OffsetPositioning::offset_from_parent(
+                    vec2f(action_button_x_offset, action_button_y_offset),
+                    ParentOffsetBounds::ParentByPosition,
+                    ParentAnchor::TopRight,
+                    ChildAnchor::TopRight,
+                ),
+            );
+        }
         stack.finish()
     })
     .on_right_click(move |ctx, _, position| {
@@ -3479,6 +3505,23 @@ fn render_synced_inputs_indicator() -> Box<dyn Element> {
     .with_width(BADGE_ICON_SIZE)
     .with_height(BADGE_ICON_SIZE)
     .finish()
+}
+
+/// Pane rows get a Cmd+N hint only when the row itself is the tab. Multi-pane
+/// tabs in Panes view (including members of a tab group) would otherwise repeat
+/// the same shortcut on every split.
+fn should_paint_shortcut_on_pane_rows(
+    display_granularity: VerticalTabsDisplayGranularity,
+    has_tab_level_header: bool,
+    pane_row_count: usize,
+) -> bool {
+    if has_tab_level_header {
+        return false;
+    }
+    if matches!(display_granularity, VerticalTabsDisplayGranularity::Panes) && pane_row_count > 1 {
+        return false;
+    }
+    true
 }
 
 /// Whether a row is eligible to surface the switch-to-tab shortcut hint.
