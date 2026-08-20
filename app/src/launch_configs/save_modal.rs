@@ -8,8 +8,9 @@ use warp_core::ui::theme::Fill;
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
 use warpui::elements::{
     Align, Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
-    Element, Empty, Flex, FormattedTextElement, MouseStateHandle, OffsetPositioning, ParentAnchor,
-    ParentElement, ParentOffsetBounds, Radius, SavePosition, Shrinkable, Stack, Text,
+    CrossAxisAlignment, Element, Empty, Flex, FormattedTextElement, MainAxisAlignment,
+    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
+    SavePosition, Shrinkable, Stack, Text,
 };
 use warpui::keymap::FixedBinding;
 use warpui::ui_components::button::{Button, ButtonVariant};
@@ -40,6 +41,8 @@ const BUTTON_SIZE: f32 = 24.;
 const DOC_LINK_WIDTH: f32 = 120.;
 const SAVE_CONFIG_BUTTON_LABEL: &str = "Save Configuration";
 const OPEN_FILE_BUTTON_LABEL: &str = "Open YAML File";
+const OVERWRITE_BUTTON_LABEL: &str = "Overwrite";
+const CANCEL_OVERWRITE_BUTTON_LABEL: &str = "Cancel";
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -90,6 +93,8 @@ struct SaveModalMouseStates {
     documentation_link_state: MouseStateHandle,
     save_button_state: MouseStateHandle,
     open_file_button_state: MouseStateHandle,
+    overwrite_button_state: MouseStateHandle,
+    cancel_overwrite_button_state: MouseStateHandle,
 }
 
 /// View that shows up when a user expresses the intent to save their current
@@ -106,6 +111,7 @@ pub struct LaunchConfigSaveModal {
 
 /// Keeps track of the current lifecycle state of the modal
 /// NotSaved => Success(file_name)
+/// NotSaved => ConfirmOverwrite => Success
 /// NotSaved => Failure, ideally this shouldn't happen
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum SaveState {
@@ -113,13 +119,14 @@ pub enum SaveState {
     Success,
     /// Fails to save
     Failure(FailureType),
+    /// Name collides with an existing YAML; waiting for overwrite or cancel.
+    ConfirmOverwrite,
     /// Not yet saved
     NotSaved,
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Copy)]
 pub enum FailureType {
-    FileAlreadyExists,
     Other,
 }
 
@@ -134,6 +141,8 @@ pub enum LaunchConfigSaveAction {
     Close,
     Save,
     OpenFile,
+    Overwrite,
+    CancelOverwrite,
 }
 
 impl LaunchConfigSaveAction {
@@ -141,6 +150,7 @@ impl LaunchConfigSaveAction {
         match save_state {
             SaveState::Success => Self::OpenFile,
             SaveState::NotSaved => Self::Save,
+            SaveState::ConfirmOverwrite => Self::Overwrite,
             SaveState::Failure(_) => Self::Close,
         }
     }
@@ -259,12 +269,22 @@ impl LaunchConfigSaveModal {
     }
 
     #[cfg(feature = "local_fs")]
-    fn try_save_launch_config(&mut self, ctx: &mut ViewContext<Self>) {
-        let file_name_candidate = self.editor.as_ref(ctx).buffer_text(ctx);
+    fn try_save_launch_config(&mut self, overwrite: bool, ctx: &mut ViewContext<Self>) {
+        let file_name_candidate = if overwrite {
+            self.file_name
+                .clone()
+                .unwrap_or_else(|| self.editor.as_ref(ctx).buffer_text(ctx))
+        } else {
+            self.editor.as_ref(ctx).buffer_text(ctx)
+        };
         let launch_config_name = file_name_to_human_readable_name(&file_name_candidate);
         if let Some(app_state) = &self.current_app_state {
             let launch_config = LaunchConfig::from_snapshot(launch_config_name, app_state);
-            match WarpConfig::save_new_launch_config(file_name_candidate, launch_config.clone()) {
+            match WarpConfig::save_new_launch_config(
+                file_name_candidate,
+                launch_config.clone(),
+                overwrite,
+            ) {
                 Ok(file_name) => {
                     self.saved_successfully(file_name, ctx);
                     ctx.emit(LaunchConfigModalEvent::SuccessfullySavedConfig(
@@ -273,8 +293,8 @@ impl LaunchConfigSaveModal {
                 }
                 Err(e) => {
                     log::warn!("Failed to save current session as template. error: {e}");
-                    if e.to_string().contains("File already exists") {
-                        self.failed_save(FailureType::FileAlreadyExists, ctx);
+                    if !overwrite && e.to_string().contains("File already exists") {
+                        self.confirm_overwrite(ctx);
                     } else {
                         self.failed_save(FailureType::Other, ctx);
                     }
@@ -283,6 +303,17 @@ impl LaunchConfigSaveModal {
         } else {
             self.failed_save(FailureType::Other, ctx);
         }
+        ctx.notify();
+    }
+
+    fn confirm_overwrite(&mut self, ctx: &mut ViewContext<Self>) {
+        let file_name = self.editor.as_ref(ctx).buffer_text(ctx);
+        self.set_save_state(SaveState::ConfirmOverwrite, Some(file_name));
+        ctx.notify();
+    }
+
+    fn cancel_overwrite(&mut self, ctx: &mut ViewContext<Self>) {
+        self.save_state = SaveState::NotSaved;
         ctx.notify();
     }
 
@@ -313,11 +344,12 @@ impl LaunchConfigSaveModal {
         appearance: &Appearance,
         button_text: String,
         mouse_state: MouseStateHandle,
+        variant: ButtonVariant,
         disabled: bool,
     ) -> Button {
         let button = appearance
             .ui_builder()
-            .button(ButtonVariant::Accent, mouse_state)
+            .button(variant, mouse_state)
             .with_centered_text_label(button_text)
             .with_style(UiComponentStyles {
                 padding: Some(Coords {
@@ -341,6 +373,7 @@ impl LaunchConfigSaveModal {
             appearance,
             SAVE_CONFIG_BUTTON_LABEL.to_owned(),
             self.mouse_states.save_button_state.clone(),
+            ButtonVariant::Accent,
             disabled,
         )
         .build()
@@ -355,6 +388,7 @@ impl LaunchConfigSaveModal {
             appearance,
             OPEN_FILE_BUTTON_LABEL.to_owned(),
             self.mouse_states.open_file_button_state.clone(),
+            ButtonVariant::Accent,
             false,
         )
         .build()
@@ -373,6 +407,38 @@ impl LaunchConfigSaveModal {
             .with_padding_right(SIDE_PADDING)
     }
 
+    fn render_overwrite_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+        self.save_modal_button(
+            appearance,
+            OVERWRITE_BUTTON_LABEL.to_owned(),
+            self.mouse_states.overwrite_button_state.clone(),
+            ButtonVariant::Warn,
+            false,
+        )
+        .build()
+        .on_click(move |ctx, _, _| {
+            ctx.dispatch_typed_action(ActionRequest::Action(LaunchConfigSaveAction::Overwrite));
+        })
+        .finish()
+    }
+
+    fn render_cancel_overwrite_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+        self.save_modal_button(
+            appearance,
+            CANCEL_OVERWRITE_BUTTON_LABEL.to_owned(),
+            self.mouse_states.cancel_overwrite_button_state.clone(),
+            ButtonVariant::Secondary,
+            false,
+        )
+        .build()
+        .on_click(move |ctx, _, _| {
+            ctx.dispatch_typed_action(ActionRequest::Action(
+                LaunchConfigSaveAction::CancelOverwrite,
+            ));
+        })
+        .finish()
+    }
+
     /// Renders the button based on the state the modal is in
     fn render_button_row(
         &self,
@@ -388,7 +454,22 @@ impl LaunchConfigSaveModal {
                 self.render_save_config_button(appearance, save_config_disabled),
             ))
             .finish(),
-            LaunchConfigSaveAction::Close => Empty::new().finish(),
+            LaunchConfigSaveAction::Overwrite => {
+                let row = Flex::row()
+                    .with_main_axis_alignment(MainAxisAlignment::End)
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_child(
+                        Container::new(self.render_cancel_overwrite_button(appearance))
+                            .with_padding_right(8.)
+                            .finish(),
+                    )
+                    .with_child(self.render_overwrite_button(appearance))
+                    .finish();
+                Self::add_button_padding(Container::new(row)).finish()
+            }
+            LaunchConfigSaveAction::Close | LaunchConfigSaveAction::CancelOverwrite => {
+                Empty::new().finish()
+            }
         }
     }
 
@@ -555,15 +636,26 @@ impl LaunchConfigSaveModal {
                     .finish(),
                 )
                 .with_child(link_to_docs),
-            SaveState::Failure(failure_type) => header.with_child(
+            SaveState::ConfirmOverwrite => header.with_child(
+                self.render_formatted_text_line(appearance, vec![
+                    FormattedTextFragment::plain_text(
+                        "A launch configuration named ".to_string(),
+                    ),
+                    FormattedTextFragment::inline_code(
+                        self.file_name.clone().unwrap_or_default(),
+                    ),
+                    FormattedTextFragment::plain_text(
+                        " already exists. Overwrite it with your current windows, tabs, and panes?"
+                            .to_string(),
+                    ),
+                ])
+                .with_padding_bottom(24.)
+                .finish(),
+            ),
+            SaveState::Failure(_) => header.with_child(
                 self.render_text_block(
                     appearance,
-                    match failure_type {
-                        FailureType::FileAlreadyExists => {
-                            "Failed to save. A launch configuration with the same name already exists.".to_string()
-                        }
-                        FailureType::Other => "An issue was encountered while saving.".to_string(),
-                    },
+                    "An issue was encountered while saving.".to_string(),
                 )
                 .with_padding_bottom(24.)
                 .finish(),
@@ -681,9 +773,15 @@ impl TypedActionView for LaunchConfigSaveModal {
             {
                 #[cfg(feature = "local_fs")]
                 if !self.editor.as_ref(ctx).is_empty(ctx) {
-                    self.try_save_launch_config(ctx);
+                    self.try_save_launch_config(false, ctx);
                 }
             }
+            LaunchConfigSaveAction::Overwrite =>
+            {
+                #[cfg(feature = "local_fs")]
+                self.try_save_launch_config(true, ctx);
+            }
+            LaunchConfigSaveAction::CancelOverwrite => self.cancel_overwrite(ctx),
             LaunchConfigSaveAction::OpenFile => {
                 #[cfg(feature = "local_fs")]
                 self.open_file(ctx);
