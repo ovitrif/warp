@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use warpui::platform::keyboard::KeyCode;
 
 use super::{
-    SelectedTabColor, ShortcutModifierKind, TabShortcutModifierState, next_tab_color,
-    tab_group_menu_entry_flags,
+    SelectedTabColor, ShortcutModifierKind, TAB_SHORTCUT_HINT_SHOW_DELAY, TabShortcutModifierState,
+    next_tab_color, shortcut_hints_hold_elapsed, tab_group_menu_entry_flags,
 };
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::color_dot::TAB_COLOR_OPTIONS;
@@ -47,6 +48,7 @@ fn tab_shortcut_modifier_state_clear_reports_whether_state_changed() {
     assert!(!state.clear_held_keys());
 
     assert!(state.set_key_held(KeyCode::SuperLeft, true));
+    assert!(state.held_since.get().is_some());
     assert_eq!(
         state.held_kinds(),
         [ShortcutModifierKind::Super].into_iter().collect()
@@ -54,7 +56,55 @@ fn tab_shortcut_modifier_state_clear_reports_whether_state_changed() {
 
     assert!(state.clear_held_keys());
     assert!(state.held_kinds().is_empty());
+    assert!(state.held_since.get().is_none());
     assert!(!state.clear_held_keys());
+}
+
+#[test]
+fn shortcut_hints_wait_for_show_delay() {
+    let start = Instant::now();
+
+    assert!(!shortcut_hints_hold_elapsed(
+        None,
+        start,
+        TAB_SHORTCUT_HINT_SHOW_DELAY
+    ));
+    assert!(!shortcut_hints_hold_elapsed(
+        Some(start),
+        start,
+        TAB_SHORTCUT_HINT_SHOW_DELAY
+    ));
+    assert!(!shortcut_hints_hold_elapsed(
+        Some(start),
+        start + TAB_SHORTCUT_HINT_SHOW_DELAY - Duration::from_nanos(1),
+        TAB_SHORTCUT_HINT_SHOW_DELAY,
+    ));
+    assert!(shortcut_hints_hold_elapsed(
+        Some(start),
+        start + TAB_SHORTCUT_HINT_SHOW_DELAY,
+        TAB_SHORTCUT_HINT_SHOW_DELAY,
+    ));
+}
+
+#[test]
+fn tab_shortcut_hold_start_survives_extra_modifiers_and_clears_on_release() {
+    let state = TabShortcutModifierState::new();
+
+    state.set_key_held(KeyCode::SuperLeft, true);
+    let started = state.held_since.get();
+    let generation = state.hold_generation();
+    assert!(started.is_some());
+    assert!(!state.hold_elapsed());
+
+    state.set_key_held(KeyCode::ShiftLeft, true);
+    assert_eq!(state.held_since.get(), started);
+    assert_eq!(state.hold_generation(), generation);
+
+    state.set_key_held(KeyCode::ShiftLeft, false);
+    assert_eq!(state.held_since.get(), started);
+
+    state.set_key_held(KeyCode::SuperLeft, false);
+    assert!(state.held_since.get().is_none());
 }
 
 // GH-13073 follow-up: a tab that shares a group with siblings SHOULD still be

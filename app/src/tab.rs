@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
@@ -78,8 +78,8 @@ pub(crate) const TAB_ACTIVATE_BINDING_NAMES: [&str; 8] = [
 
 pub(crate) const TAB_LAST_ACTIVATE_BINDING_NAME: &str = "workspace:activate_last_tab";
 
-/// Show delay so a tap of Cmd for Cmd+C does not flash hints (Codex-style).
-pub(crate) const TAB_SHORTCUT_HINT_SHOW_DELAY: Duration = Duration::from_millis(100);
+/// Show delay so a tap of Cmd for Cmd+C does not flash hints (Cursor-style).
+pub(crate) const TAB_SHORTCUT_HINT_SHOW_DELAY: Duration = Duration::from_millis(400);
 
 /// Binding that `cmdorctrl-N` maps to for this tab, if any.
 pub(crate) fn tab_shortcut_binding_name(
@@ -152,15 +152,25 @@ pub(crate) fn reveals_shortcut_hints(
     held.intersection(binding_kinds).next().is_some()
 }
 
+/// Whether a modifier hold has lasted long enough to reveal tab shortcut hints.
+pub(crate) fn shortcut_hints_hold_elapsed(
+    held_since: Option<Instant>,
+    now: Instant,
+    delay: Duration,
+) -> bool {
+    held_since.is_some_and(|start| now.saturating_duration_since(start) >= delay)
+}
+
 /// Tracks which physical modifier keys are currently held, so tab surfaces can
 /// temporarily show switch-to-tab shortcut hints while a relevant modifier is
 /// down.
 #[derive(Default)]
 pub struct TabShortcutModifierState {
     held_keys: RefCell<HashSet<KeyCode>>,
-    /// Bumped on every hold-set change so a delayed show can ignore a tap that
+    /// Bumped when a hold starts or ends so a delayed show ignores a tap that
     /// was already released.
     hold_generation: Cell<u64>,
+    held_since: Cell<Option<Instant>>,
 }
 
 impl TabShortcutModifierState {
@@ -171,15 +181,23 @@ impl TabShortcutModifierState {
     /// Returns whether the held-key set changed.
     pub fn set_key_held(&self, key_code: KeyCode, pressed: bool) -> bool {
         let mut held_keys = self.held_keys.borrow_mut();
+        let was_empty = held_keys.is_empty();
         let changed = if pressed {
             held_keys.insert(key_code)
         } else {
             held_keys.remove(&key_code)
         };
-        if changed {
-            self.hold_generation.set(self.hold_generation.get() + 1);
+        if !changed {
+            return false;
         }
-        changed
+        if was_empty && pressed {
+            self.hold_generation.set(self.hold_generation.get() + 1);
+            self.held_since.set(Some(Instant::now()));
+        } else if held_keys.is_empty() {
+            self.hold_generation.set(self.hold_generation.get() + 1);
+            self.held_since.set(None);
+        }
+        true
     }
 
     pub fn hold_generation(&self) -> u64 {
@@ -190,6 +208,14 @@ impl TabShortcutModifierState {
         !self.held_keys.borrow().is_empty()
     }
 
+    fn hold_elapsed(&self) -> bool {
+        shortcut_hints_hold_elapsed(
+            self.held_since.get(),
+            Instant::now(),
+            TAB_SHORTCUT_HINT_SHOW_DELAY,
+        )
+    }
+
     /// Clears all held keys and returns whether the held-key set changed.
     pub fn clear_held_keys(&self) -> bool {
         let mut held_keys = self.held_keys.borrow_mut();
@@ -197,6 +223,8 @@ impl TabShortcutModifierState {
             false
         } else {
             held_keys.clear();
+            self.hold_generation.set(self.hold_generation.get() + 1);
+            self.held_since.set(None);
             true
         }
     }
@@ -217,10 +245,15 @@ impl Entity for TabShortcutModifierState {
 impl SingletonEntity for TabShortcutModifierState {}
 
 /// Whether shortcut hints should show right now: some held modifier is one the
-/// current switch-to-tab bindings actually use. Derived from the bindings so a
-/// user who remapped, say, ⌘1 to ⌥1 reveals with ⌥, not ⌘.
+/// current switch-to-tab bindings actually use, and the hold has lasted the
+/// show delay. Derived from the bindings so a user who remapped, say, ⌘1 to
+/// ⌥1 reveals with ⌥, not ⌘.
 pub(crate) fn reveals_tab_shortcut_hints(ctx: &AppContext) -> bool {
-    let held = TabShortcutModifierState::as_ref(ctx).held_kinds();
+    let state = TabShortcutModifierState::as_ref(ctx);
+    if !state.hold_elapsed() {
+        return false;
+    }
+    let held = state.held_kinds();
     if held.is_empty() {
         return false;
     }

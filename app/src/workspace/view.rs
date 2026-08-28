@@ -23894,10 +23894,8 @@ impl TypedActionView for Workspace {
                     let generation = state.hold_generation();
                     ctx.spawn(
                         async {
-                            warpui::r#async::Timer::after(
-                                crate::tab::TAB_SHORTCUT_HINT_SHOW_DELAY,
-                            )
-                            .await;
+                            warpui::r#async::Timer::after(crate::tab::TAB_SHORTCUT_HINT_SHOW_DELAY)
+                                .await;
                         },
                         move |_, _, ctx| {
                             let state = TabShortcutModifierState::as_ref(ctx);

@@ -66,5 +66,6 @@ index so Cmd+N never lies.
 
 ## Delay
 
-#15221's PR text describes a debounce; match Codex at ~100ms show, 0ms hide.
-If the PR lands without delay, add it next to `set_key_held`.
+#15221's PR text describes a debounce. Match Cursor at ~400ms show, 0ms hide:
+gate `reveals_tab_shortcut_hints` on hold elapsed so incidental re-renders
+during the delay cannot flash hints. Hide immediately on release.

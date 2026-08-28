@@ -35,7 +35,7 @@ hold-to-reveal (no setting). #15221 implements that with trailing labels.
 - Horizontal tab bar, compact tabs, and vertical grouped tabs.
 - Binding-aware: remapped modifiers reveal with the remapped key; unbound
   tabs show nothing.
-- ~100ms show delay (Codex). Hide immediately on release or window blur.
+- ~400ms show delay (Cursor). Hide immediately on release or window blur.
 
 ## Non-goals
 
@@ -48,7 +48,7 @@ hold-to-reveal (no setting). #15221 implements that with trailing labels.
 ## User-visible behavior
 
 1. Hold Cmd (or the modifier the tab-switch bindings actually use) for
-   ~100ms. Trailing ⌘1–⌘8 appear on the first eight tabs, in global order.
+   ~400ms. Trailing ⌘1–⌘8 appear on the first eight tabs, in global order.
 2. If there are 9+ tabs, the last visible tab also gets 9 (`activate_last_tab`).
    A ninth tab that is not last stays unlabeled.
 3. Release, press a non-modifier, or unfocus the window: overlays vanish.
