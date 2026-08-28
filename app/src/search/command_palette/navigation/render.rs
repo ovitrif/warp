@@ -14,7 +14,7 @@ use crate::context_chips::display_chip::{
     udi_font_size,
 };
 use crate::context_chips::prompt_snapshot::PromptSnapshot;
-use crate::context_chips::{ChipValue, ContextChipKind};
+use crate::context_chips::{ChipValue, ContextChipKind, github_pr_badge_label_from_url};
 use crate::search::command_palette::navigation::search::SessionHighlightIndices;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::session_management::{CommandContext, SessionNavigationData};
@@ -182,7 +182,7 @@ fn render_prompt_udi(snapshot: &PromptSnapshot, appearance: &Appearance) -> Box<
             .kind()
             .default_styles(appearance, false)
             .value_color;
-        let value_text = value.to_string();
+        let value_text = palette_chip_value_text(chip_result.kind(), value);
         let config = if let Some(icon) = chip_result.kind().udi_icon() {
             UdiChipConfig::new_with_icon(icon, color, value_text)
         } else {
@@ -196,6 +196,14 @@ fn render_prompt_udi(snapshot: &PromptSnapshot, appearance: &Appearance) -> Box<
         .with_margin_right(styles::NAVIGATION_PALETTE_COMMAND_HINT_MARGIN * 2.);
 
     prompt_section.finish()
+}
+
+fn palette_chip_value_text(kind: &ContextChipKind, value: &ChipValue) -> String {
+    match kind {
+        ContextChipKind::GithubPullRequest => github_pr_badge_label_from_url(&value.to_string())
+            .unwrap_or_else(|| value.to_string()),
+        _ => value.to_string(),
+    }
 }
 
 /// Renders the prompt from the raw PS1 terminal grid, preserving full
@@ -393,3 +401,7 @@ mod styles {
     pub const NAVIGATION_PALETTE_COMMAND_ROW_SPACING: f32 = 10.;
     pub const NAVIGATION_PALETTE_COMMAND_HINT_MARGIN: f32 = 5.;
 }
+
+#[cfg(test)]
+#[path = "render_tests.rs"]
+mod tests;

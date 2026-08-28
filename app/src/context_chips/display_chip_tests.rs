@@ -4,7 +4,9 @@ use super::{
 use crate::context_chips::display_chip::PromptChipShellCommand;
 use crate::context_chips::display_menu::GenericMenuItem;
 use crate::context_chips::git_branch_on_click::GitBranchOnClickValue;
-use crate::context_chips::{ContextChipKind, github_pr_display_text_from_url};
+use crate::context_chips::{
+    ContextChipKind, github_pr_badge_label_from_url, github_pr_display_text_from_url,
+};
 use crate::ui_components::icons::Icon;
 
 #[test]
@@ -12,6 +14,14 @@ fn test_github_pr_display_text_from_url() {
     assert_eq!(
         github_pr_display_text_from_url("https://github.com/warp/warp/pull/123"),
         Some("PR #123".to_string())
+    );
+}
+
+#[test]
+fn test_github_pr_badge_label_from_url() {
+    assert_eq!(
+        github_pr_badge_label_from_url("https://github.com/synonymdev/bitkit-ios/pull/691"),
+        Some("#691".to_string())
     );
 }
 
