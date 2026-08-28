@@ -46,7 +46,7 @@ use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::code::editor::{add_color, remove_color};
 use crate::code::icon_from_file_path;
 use crate::context_chips::display_chip::GitLineChanges;
-use crate::context_chips::github_pr_display_text_from_url;
+use crate::context_chips::github_pr_badge_label_from_url;
 use crate::drive::DriveObjectType;
 use crate::drive::cloud_object_styling::warp_drive_icon_color;
 use crate::editor::EditorView;
@@ -4388,8 +4388,7 @@ fn terminal_agent_text(terminal_view: &TerminalView, app: &AppContext) -> Termin
 }
 
 fn terminal_pull_request_badge_label(pull_request_url: &str) -> String {
-    github_pr_display_text_from_url(pull_request_url)
-        .map(|label| label.strip_prefix("PR ").unwrap_or(&label).to_string())
+    github_pr_badge_label_from_url(pull_request_url)
         .unwrap_or_else(|| pull_request_url.to_string())
 }
 

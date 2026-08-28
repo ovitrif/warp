@@ -120,6 +120,11 @@ pub(crate) fn github_pr_display_text_from_url(url: &str) -> Option<String> {
     github_pr_number_from_url(url).map(|number| format!("PR #{number}"))
 }
 
+/// Compact badge label used next to a GitHub icon (tab popover, sessions palette).
+pub(crate) fn github_pr_badge_label_from_url(url: &str) -> Option<String> {
+    github_pr_number_from_url(url).map(|number| format!("#{number}"))
+}
+
 /// The refresh settings for the date context chip.
 /// unless the clock strikes midnight without the user running a command.
 const DATE_REFRESH_CONFIG: RefreshConfig = RefreshConfig::Periodically {
