@@ -449,8 +449,9 @@ fn render_pane_row_element(
             }))
             .finish();
 
-        // Pin indicator anchored at the visible pane's top-right corner. Pin
-        // is visible when the container is not hovered.
+        // Pin at the pane's top-right. Use a positioned child, not an overlay:
+        // overlay layers are unclipped (`ClipBounds::None`) and leak through
+        // `ClippedScrollable` onto whatever group is under that screen point.
         if show_pin {
             let pin_icon = ConstrainedBox::new(
                 WarpIcon::PinFilledDiagonal
@@ -461,7 +462,7 @@ fn render_pane_row_element(
             .with_height(PIN_INDICATOR_ICON_SIZE)
             .finish();
             let mut stack = Stack::new().with_child(pane);
-            stack.add_positioned_overlay_child(
+            stack.add_positioned_child(
                 pin_icon,
                 OffsetPositioning::offset_from_parent(
                     vec2f(-PIN_INDICATOR_CORNER_INSET, PIN_INDICATOR_CORNER_INSET),
@@ -2534,7 +2535,7 @@ fn render_tab_group_internal(
             ),
         );
         if let Some(label) = stack_shortcut_label.clone() {
-            stack.add_positioned_overlay_child(
+            stack.add_positioned_child(
                 Text::new_inline(label, shortcut_font_family, GROUP_HEADER_FONT_SIZE)
                     .with_color(shortcut_color.into())
                     .finish(),
@@ -2958,9 +2959,10 @@ fn render_grouped_tabs_header(
         }
         let header = container.finish();
 
-        // Pin indicator anchored at the visible top-right corner, matching
-        // the per-tab pin placement. Hidden whenever the action buttons
-        // are visible so the two never overlap.
+        // Pin at the header's top-right, matching per-tab placement. Hidden
+        // when action buttons are visible so the two never overlap. Positioned
+        // child, not overlay: overlays skip the scroll clip and would stick to
+        // whatever group is under that screen point.
         if group_pinned && !show_action_buttons {
             let pin_icon = ConstrainedBox::new(
                 WarpIcon::PinFilledDiagonal
@@ -2971,7 +2973,7 @@ fn render_grouped_tabs_header(
             .with_height(PIN_INDICATOR_ICON_SIZE)
             .finish();
             let mut stack = Stack::new().with_child(header);
-            stack.add_positioned_overlay_child(
+            stack.add_positioned_child(
                 pin_icon,
                 OffsetPositioning::offset_from_parent(
                     vec2f(-PIN_INDICATOR_CORNER_INSET, PIN_INDICATOR_CORNER_INSET),
@@ -3337,7 +3339,7 @@ fn render_group_header(props: GroupHeaderProps<'_>, app: &AppContext) -> Box<dyn
                 .with_color(hint_color.into())
                 .finish();
             let mut stack = Stack::new().with_child(header);
-            stack.add_positioned_overlay_child(
+            stack.add_positioned_child(
                 hint,
                 OffsetPositioning::offset_from_parent(
                     vec2f(-GROUP_HORIZONTAL_PADDING, 0.),
