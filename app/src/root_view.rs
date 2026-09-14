@@ -564,10 +564,7 @@ fn maybe_register_global_window_shortcuts(
         .quake_mode_settings
         .keybinding
         .clone()
-        .filter(|_| {
-            *KeysSettings::as_ref(ctx).quake_mode_enabled
-                && KeysSettings::may_register_dedicated_hotkey_window()
-        })
+        .filter(|_| *KeysSettings::as_ref(ctx).quake_mode_enabled)
     {
         ctx.register_global_shortcut(
             key.clone(),
