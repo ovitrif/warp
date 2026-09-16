@@ -304,7 +304,7 @@ use crate::pane_group::{
     self, AIFactPane, AnyPaneContent, ChildAgentOrigin, CodeDiffPane, CodePane, CodeReviewPanelArg,
     CustomRouterEditorPane, Direction as PaneGroupDirection, Direction, EnvironmentManagementPane,
     ExecutionProfileEditorPane, NetworkLogPane, NewTerminalOptions, PaneGroup, PaneId, PanesLayout,
-    TabBarHoverIndex, TerminalPaneId,
+    TabBarHoverIndex, TerminalPane, TerminalPaneId,
 };
 use crate::persistence::ModelEvent;
 use crate::projects::ProjectManagementModel;
@@ -5390,19 +5390,28 @@ impl Workspace {
                     .iter()
                     .enumerate()
                     .find(|(_, t)| t.pane_group.id() == pane_group_id)?;
-                let title = tab.pane_group.as_ref(ctx).display_title(ctx);
-                let subtitle = tab
-                    .pane_group
-                    .as_ref(ctx)
-                    .active_session_path(ctx)
-                    .map(|p| {
-                        if let Some(home) = dirs::home_dir()
-                            && let Ok(stripped) = p.strip_prefix(&home)
-                        {
-                            return format!("~/{}", stripped.display());
-                        }
-                        p.display().to_string()
-                    });
+                let pane_group = tab.pane_group.as_ref(ctx);
+                let title = pane_group.display_title(ctx);
+                let subtitle = pane_group.active_session_path(ctx).map(|p| {
+                    if let Some(home) = dirs::home_dir()
+                        && let Ok(stripped) = p.strip_prefix(&home)
+                    {
+                        return format!("~/{}", stripped.display());
+                    }
+                    p.display().to_string()
+                });
+                let git_branch = pane_group
+                    .focused_session_view(ctx)
+                    .or_else(|| pane_group.active_session_view(ctx))
+                    .and_then(|view| view.as_ref(ctx).current_git_branch(ctx));
+                let group_name =
+                    tab.group_id
+                        .and_then(|id| self.tab_groups.get(&id))
+                        .map(|group| {
+                            crate::search::command_palette::switcher_item::group_suffix_label(
+                                group.name.as_deref(),
+                            )
+                        });
                 Some(TabNavigationData {
                     pane_group_id,
                     title,
@@ -5410,6 +5419,8 @@ impl Workspace {
                     window_id,
                     tab_index: tab_index + 1,
                     color: tab.color(),
+                    group_name,
+                    git_branch,
                 })
             })
             .collect()
@@ -5469,11 +5480,28 @@ impl Workspace {
         app: &'a AppContext,
     ) -> impl Iterator<Item = SessionNavigationData> + 'a {
         self.tabs.iter().flat_map(move |tab| {
-            // Each tab has a pane group
             let pane_group_id = tab.pane_group.id();
             let view = tab.pane_group.as_ref(app);
-
+            let tab_title = view.display_title(app);
+            let terminal_pane_ids: Vec<PaneId> = view
+                .visible_pane_ids()
+                .into_iter()
+                .filter(|pane_id| view.downcast_pane_by_id::<TerminalPane>(*pane_id).is_some())
+                .collect();
+            let pane_count = terminal_pane_ids.len();
             view.pane_sessions(pane_group_id, window_id, app)
+                .map(move |session| {
+                    let pane_id = session.pane_view_locator().pane_id;
+                    let pane_index = (pane_count > 1)
+                        .then(|| {
+                            terminal_pane_ids
+                                .iter()
+                                .position(|&id| id == pane_id)
+                                .map(|index| index + 1)
+                        })
+                        .flatten();
+                    session.with_tab_context(tab_title.clone(), pane_index)
+                })
         })
     }
 

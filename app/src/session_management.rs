@@ -29,6 +29,10 @@ pub struct SessionNavigationData {
     is_read_only: bool,
     /// The sharing status of the session.
     shared_session_status: SharedSessionStatus,
+    /// Display title of the tab that owns this session.
+    tab_title: String,
+    /// 1-based index among terminal panes in the tab. `None` when the tab has a single pane.
+    pane_index: Option<usize>,
 }
 
 impl SessionNavigationData {
@@ -111,7 +115,15 @@ impl SessionNavigationData {
             is_read_only,
             window_id,
             shared_session_status,
+            tab_title: String::new(),
+            pane_index: None,
         }
+    }
+
+    pub fn with_tab_context(mut self, tab_title: String, pane_index: Option<usize>) -> Self {
+        self.tab_title = tab_title;
+        self.pane_index = pane_index;
+        self
     }
 
     pub fn prompt(&self) -> &str {
@@ -144,6 +156,14 @@ impl SessionNavigationData {
 
     pub fn shared_session_status(&self) -> SharedSessionStatus {
         self.shared_session_status.clone()
+    }
+
+    pub fn tab_title(&self) -> &str {
+        &self.tab_title
+    }
+
+    pub fn pane_index(&self) -> Option<usize> {
+        self.pane_index
     }
 
     /// Fetches all sessions currently open in the app.
@@ -243,4 +263,8 @@ pub struct TabNavigationData {
     pub tab_index: usize,
     /// The tab's color, if one has been set by the user.
     pub color: Option<AnsiColorIdentifier>,
+    /// Group display name when the tab is grouped.
+    pub group_name: Option<String>,
+    /// Current git branch of the focused terminal, if any.
+    pub git_branch: Option<String>,
 }
