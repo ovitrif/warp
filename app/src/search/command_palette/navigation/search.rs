@@ -7,7 +7,7 @@ use warpui::{AppContext, ModelHandle};
 use crate::pane_group::PaneId;
 use crate::search::SyncDataSource;
 use crate::search::command_palette::navigation::DataSource;
-use crate::search::command_palette::navigation::render::CommandRenderInfo;
+use crate::search::command_palette::navigation::render::command_hint_text;
 use crate::search::command_palette::navigation::search_item::SearchItem;
 use crate::search::data_source::QueryResult;
 use crate::session_management::{CommandContext, SessionNavigationData, SessionSource};
@@ -124,13 +124,17 @@ where
         })
 }
 
-/// The searchable string format is: [prompt] [command] [hint text],
-/// where [command] may or may not be present.
+/// The searchable string format is: [tab title] [prompt] [command] [hint text],
+/// where [tab title] and [command] may be empty.
 fn searchable_session_string_and_ranges(
     session: &SessionNavigationData,
 ) -> (String, SearchableSessionStringRanges) {
-    let mut searchable_string = session.prompt().to_string();
-    let prompt_end = session.prompt().chars().count();
+    let mut searchable_string = session.tab_title().to_string();
+    if !searchable_string.is_empty() {
+        searchable_string.push(' ');
+    }
+    searchable_string.push_str(session.prompt());
+    let prompt_end = searchable_string.chars().count();
 
     let command_range = match session.command_context() {
         CommandContext::LastRunCommand {
@@ -166,18 +170,18 @@ fn searchable_session_string_and_ranges(
         CommandContext::None => None,
     };
 
-    let command_info = CommandRenderInfo::from_context(session.command_context());
+    let hint_text = command_hint_text(session.command_context());
     searchable_string.push(' ');
-    searchable_string.push_str(command_info.hint_text.as_str());
+    searchable_string.push_str(hint_text.as_str());
     let hint_text_range = match &command_range {
         Some(command_range) => {
             let start = command_range.end + 1;
-            let end = start + command_info.hint_text.chars().count();
+            let end = start + hint_text.chars().count();
             start..end
         }
         None => {
             let start = prompt_end + 1;
-            let end = start + command_info.hint_text.chars().count();
+            let end = start + hint_text.chars().count();
             start..end
         }
     };

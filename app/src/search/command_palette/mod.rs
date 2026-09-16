@@ -11,6 +11,7 @@ pub mod render_util;
 pub mod repos;
 mod selected_items;
 pub mod separator_search_item;
+pub(crate) mod switcher_item;
 pub mod tabs;
 pub mod view;
 pub mod warp_drive;

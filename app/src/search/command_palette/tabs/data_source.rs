@@ -52,6 +52,14 @@ impl SyncDataSource for DataSource {
                         .subtitle
                         .as_deref()
                         .is_some_and(|s| s.to_lowercase().contains(&query_text))
+                    || tab
+                        .group_name
+                        .as_deref()
+                        .is_some_and(|s| s.to_lowercase().contains(&query_text))
+                    || tab
+                        .git_branch
+                        .as_deref()
+                        .is_some_and(|s| s.to_lowercase().contains(&query_text))
             })
             .map(|(i, tab)| QueryResult::from(SearchItem::new(tab.clone(), i)))
             .collect();

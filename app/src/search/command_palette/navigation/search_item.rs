@@ -7,11 +7,10 @@ use crate::pane_group::PaneId;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::command_palette::navigation::render::render_navigation_session;
 use crate::search::command_palette::navigation::search::MatchedSession;
-use crate::search::command_palette::render_util::render_search_item_icon;
+use crate::search::command_palette::switcher_item::empty_palette_icon;
 use crate::search::item::IconLocation;
 use crate::search::result_renderer::ItemHighlightState;
 use crate::session_management::SessionNavigationData;
-use crate::ui_components::icons::Icon;
 
 /// Search item to render a session within the command palette.
 pub struct SearchItem {
@@ -43,21 +42,14 @@ impl crate::search::item::SearchItem for SearchItem {
 
     fn render_icon(
         &self,
-        highlight_state: ItemHighlightState,
-        appearance: &Appearance,
+        _highlight_state: ItemHighlightState,
+        _appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let color = appearance.theme().foreground().into_solid();
-
-        render_search_item_icon(appearance, Icon::TerminalInput, color, highlight_state)
+        empty_palette_icon()
     }
 
-    fn icon_location(&self, appearance: &Appearance) -> IconLocation {
-        // The icon is has the size of the monospace font, whereas the text have a height of
-        // `line_height_ratio * font_size`. Offset the icon by this difference so it is rendered
-        // centered with the text.
-        let margin_top = (appearance.line_height_ratio() * appearance.monospace_font_size())
-            - appearance.monospace_font_size();
-        IconLocation::Top { margin_top }
+    fn icon_location(&self, _appearance: &Appearance) -> IconLocation {
+        IconLocation::Top { margin_top: 0. }
     }
 
     fn render_item(
@@ -102,14 +94,11 @@ impl crate::search::item::SearchItem for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!(
-            "Selected {}. {}.",
-            self.navigation_data().prompt(),
-            self.navigation_data()
-                .command_context()
-                .a11y_description()
-                .unwrap_or_default()
-        )
+        let title = self.navigation_data().tab_title();
+        match self.navigation_data().pane_index() {
+            Some(index) => format!("Selected {title} pane {index}."),
+            None => format!("Selected {title}."),
+        }
     }
 
     fn accessibility_help_message(&self) -> Option<String> {

@@ -1,15 +1,16 @@
 use ordered_float::OrderedFloat;
-use warpui::elements::{ConstrainedBox, Container, Flex, ParentElement, Text};
-use warpui::fonts::{Properties, Weight};
+use warpui::elements::{ConstrainedBox, Container, Flex, ParentElement};
 use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::appearance::Appearance;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
-use crate::search::command_palette::render_util::render_search_item_icon;
+use crate::search::command_palette::switcher_item::{
+    empty_palette_icon, render_branch_or_path_subtitle, render_switcher_icon, render_switcher_row,
+    render_title_with_suffix,
+};
 use crate::search::item::{IconLocation, SearchItem as SearchItemTrait};
 use crate::search::result_renderer::ItemHighlightState;
 use crate::session_management::TabNavigationData;
-use crate::ui_components::icons::Icon;
 
 /// These items appear in the ctrl-tab palette only, not the main command palette.
 /// Scoring matches against queries is not supported since only ranking by recency is needed.
@@ -28,28 +29,19 @@ impl SearchItemTrait for SearchItem {
     type Action = CommandPaletteItemAction;
 
     fn is_multiline(&self) -> bool {
-        self.tab.subtitle.is_some()
+        true
     }
 
     fn render_icon(
         &self,
-        highlight_state: ItemHighlightState,
-        appearance: &Appearance,
+        _highlight_state: ItemHighlightState,
+        _appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let color = if let Some(tab_color) = self.tab.color {
-            tab_color
-                .to_ansi_color(&appearance.theme().terminal_colors().normal)
-                .into()
-        } else {
-            highlight_state.icon_fill(appearance).into_solid()
-        };
-        render_search_item_icon(appearance, Icon::Navigation, color, highlight_state)
+        empty_palette_icon()
     }
 
-    fn icon_location(&self, appearance: &Appearance) -> IconLocation {
-        let margin_top = (appearance.line_height_ratio() * appearance.monospace_font_size())
-            - appearance.monospace_font_size();
-        IconLocation::Top { margin_top }
+    fn icon_location(&self, _appearance: &Appearance) -> IconLocation {
+        IconLocation::Top { margin_top: 0. }
     }
 
     fn render_item(
@@ -58,35 +50,34 @@ impl SearchItemTrait for SearchItem {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let icon = render_switcher_icon(
+            self.tab.window_id,
+            self.tab.pane_group_id,
+            None,
+            appearance,
+            app,
+        );
+        let title = render_title_with_suffix(
+            &self.tab.title,
+            self.tab.group_name.as_deref(),
+            highlight_state,
+            appearance,
+            None,
+        );
 
-        let title_text = Text::new_inline(
-            format!("{} · Tab {}", self.tab.title, self.tab.tab_index),
-            appearance.ui_font_family(),
-            appearance.monospace_font_size(),
-        )
-        .with_color(highlight_state.main_text_fill(appearance).into_solid())
-        .with_style(Properties::default().weight(Weight::Bold))
-        .finish();
-
-        if let Some(subtitle) = &self.tab.subtitle {
-            let subtitle_text = Text::new_inline(
-                subtitle.clone(),
-                appearance.ui_font_family(),
-                appearance.monospace_font_size() - 2.,
-            )
-            .with_color(highlight_state.sub_text_fill(appearance).into_solid())
-            .finish();
-
-            let contents = Flex::column()
-                .with_child(title_text)
-                .with_child(Container::new(subtitle_text).with_padding_top(4.).finish())
-                .finish();
-            ConstrainedBox::new(contents).with_height(50.).finish()
-        } else {
-            ConstrainedBox::new(Flex::column().with_child(title_text).finish())
-                .with_height(50.)
-                .finish()
+        let mut contents = Flex::column().with_child(title);
+        if let Some(subtitle) = render_branch_or_path_subtitle(
+            self.tab.git_branch.as_deref(),
+            self.tab.subtitle.as_deref(),
+            highlight_state,
+            appearance,
+        ) {
+            contents.add_child(Container::new(subtitle).with_padding_top(4.).finish());
         }
+
+        ConstrainedBox::new(render_switcher_row(icon, contents.finish()))
+            .with_height(50.)
+            .finish()
     }
 
     fn score(&self) -> OrderedFloat<f64> {
@@ -105,7 +96,10 @@ impl SearchItemTrait for SearchItem {
     }
 
     fn accessibility_label(&self) -> String {
-        format!("Selected tab: {}.", self.tab.title)
+        match self.tab.group_name.as_deref() {
+            Some(group) => format!("Selected tab: {} in {}.", self.tab.title, group),
+            None => format!("Selected tab: {}.", self.tab.title),
+        }
     }
 
     fn accessibility_help_message(&self) -> Option<String> {

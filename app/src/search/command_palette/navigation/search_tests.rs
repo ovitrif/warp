@@ -155,3 +155,43 @@ fn raw_byte_indices_produce_wrong_highlights() {
     assert_eq!(highlights.command_indices, Some(vec![]));
     assert_eq!(highlights.hint_text_indices, vec![3, 4]); // wrong!
 }
+
+#[test]
+fn searchable_string_includes_tab_title() {
+    use warpui::{EntityId, WindowId};
+
+    use super::searchable_session_string_and_ranges;
+    use crate::pane_group::TerminalPaneId;
+    use crate::session_management::{
+        CommandContext, SessionNavigationData, SessionNavigationPromptElements,
+    };
+    use crate::terminal::shared_session::SharedSessionStatus;
+    use crate::workspace::PaneViewLocator;
+
+    let session = SessionNavigationData::new(
+        "prompt".to_string(),
+        SessionNavigationPromptElements {
+            ps1_prompt_grid: None,
+            prompt_chip_snapshot: None,
+        },
+        CommandContext::None,
+        PaneViewLocator {
+            pane_group_id: EntityId::new(),
+            pane_id: TerminalPaneId::dummy_terminal_pane_id().into(),
+        },
+        None,
+        false,
+        WindowId::new(),
+        SharedSessionStatus::NotShared,
+    )
+    .with_tab_context("warp".to_string(), Some(2));
+
+    let (searchable, _) = searchable_session_string_and_ranges(&session);
+    assert!(
+        searchable.starts_with("warp prompt"),
+        "searchable string should start with tab title: {searchable}"
+    );
+
+    let hits: Vec<_> = super::filter_sessions(std::slice::from_ref(&session), "warp").collect();
+    assert_eq!(hits.len(), 1);
+}

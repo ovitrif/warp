@@ -66,6 +66,9 @@ use crate::terminal::{CLIAgent, TerminalView};
 use crate::themes::theme::Fill as ThemeFill;
 use crate::ui_components::agent_icon::terminal_view_agent_icon_variant;
 use crate::ui_components::buttons::combo_inner_button;
+use crate::ui_components::git_branch_label::{
+    compact_branch_subtitle_display, render_git_branch_text,
+};
 use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
 use crate::ui_components::icons::Icon as UiIcon;
 use crate::util::bindings::keybinding_name_to_display_string;
@@ -4787,48 +4790,6 @@ fn branch_label_display(git_branch: Option<&str>, fallback: &str) -> (String, bo
         Some(branch) => (branch.to_string(), true),
         None => (fallback.to_string(), false),
     }
-}
-
-fn compact_branch_subtitle_display(
-    git_branch: Option<&str>,
-    working_directory: Option<&str>,
-) -> Option<(String, bool)> {
-    git_branch
-        .filter(|branch| !branch.trim().is_empty())
-        .map(|branch| (branch.to_string(), true))
-        .or_else(|| {
-            working_directory
-                .filter(|wd| !wd.trim().is_empty())
-                .map(|wd| (wd.to_string(), false))
-        })
-}
-
-fn render_git_branch_text(
-    branch: &str,
-    text_color: WarpThemeFill,
-    font_size: f32,
-    appearance: &Appearance,
-) -> Box<dyn Element> {
-    Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Center)
-        .with_spacing(2.)
-        .with_child(
-            ConstrainedBox::new(UiIcon::GitBranch.to_warpui_icon(text_color).finish())
-                .with_width(font_size - 2.)
-                .with_height(font_size - 2.)
-                .finish(),
-        )
-        .with_child(
-            Shrinkable::new(
-                1.,
-                Text::new_inline(branch.to_string(), appearance.ui_font_family(), font_size)
-                    .with_clip(ClipConfig::ellipsis())
-                    .with_color(text_color.into())
-                    .finish(),
-            )
-            .finish(),
-        )
-        .finish()
 }
 
 enum MetadataLeftContent {
