@@ -1,12 +1,13 @@
 use warp_core::ui::Icon as WarpIcon;
 use warpui::elements::{
-    CrossAxisAlignment, Empty, Flex, MainAxisAlignment, MainAxisSize, ParentElement, Shrinkable,
-    Text,
+    ConstrainedBox, Container, CrossAxisAlignment, Empty, Flex, MainAxisAlignment, MainAxisSize,
+    ParentElement, Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::text_layout::ClipConfig;
 use warpui::{AppContext, Element, EntityId, WindowId};
 
+use super::super::palette_styles::RESULT_PADDING_HORIZONTAL;
 use crate::appearance::Appearance;
 use crate::pane_group::{PaneGroup, PaneId};
 use crate::search::result_renderer::ItemHighlightState;
@@ -19,6 +20,9 @@ use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_
 pub(crate) const UNTITLED_GROUP_NAME: &str = "New Group";
 const SWITCHER_ICON_SIZE: f32 = 24.;
 const SWITCHER_ICON_GAP: f32 = 8.;
+/// Match compact vertical-tabs row inset (8px). The palette already applies
+/// [`RESULT_PADDING_HORIZONTAL`].
+const SWITCHER_ROW_LEFT_INSET: f32 = 8.;
 
 /// Label after ` · ` for a grouped tab. Untitled groups use [`UNTITLED_GROUP_NAME`].
 pub(crate) fn group_suffix_label(name: Option<&str>) -> String {
@@ -33,7 +37,13 @@ pub(crate) fn pane_index_label(pane_index: Option<usize>) -> Option<String> {
 }
 
 pub(crate) fn empty_palette_icon() -> Box<dyn Element> {
-    Empty::new().finish()
+    // Unconstrained `Empty` expands to the flex max width and shoves the row
+    // contents to the right. Pin it to zero so the agent icon inside the item
+    // is the only left-side chrome.
+    ConstrainedBox::new(Empty::new().finish())
+        .with_width(0.)
+        .with_height(0.)
+        .finish()
 }
 
 pub(crate) fn render_title_with_suffix(
@@ -124,13 +134,21 @@ pub(crate) fn render_switcher_row(
     icon: Box<dyn Element>,
     text: Box<dyn Element>,
 ) -> Box<dyn Element> {
-    Flex::row()
-        .with_main_axis_size(MainAxisSize::Max)
-        .with_cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_spacing(SWITCHER_ICON_GAP)
-        .with_child(icon)
-        .with_child(Shrinkable::new(1., text).finish())
-        .finish()
+    let icon = ConstrainedBox::new(icon)
+        .with_width(SWITCHER_ICON_SIZE)
+        .with_height(SWITCHER_ICON_SIZE)
+        .finish();
+    Container::new(
+        Flex::row()
+            .with_main_axis_size(MainAxisSize::Max)
+            .with_cross_axis_alignment(CrossAxisAlignment::Start)
+            .with_spacing(SWITCHER_ICON_GAP)
+            .with_child(icon)
+            .with_child(Shrinkable::new(1., text).finish())
+            .finish(),
+    )
+    .with_margin_left(-(RESULT_PADDING_HORIZONTAL - SWITCHER_ROW_LEFT_INSET))
+    .finish()
 }
 
 fn switcher_icon_variant(
