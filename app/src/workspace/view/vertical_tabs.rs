@@ -2204,11 +2204,8 @@ fn render_tab_group_internal(
         pane_group_id,
         pane_id: pane_group.focused_pane_id(app),
     };
-    let show_header = should_show_tab_group_header(
-        has_custom_title,
-        is_being_renamed,
-        visible_pane_ids.len(),
-    );
+    let show_header =
+        should_show_tab_group_header(has_custom_title, is_being_renamed, visible_pane_ids.len());
     let has_tab_level_header = uses_outer_group_container && show_header;
     let paint_shortcut_on_pane_rows = should_paint_shortcut_on_pane_rows(
         display_granularity,
@@ -3581,8 +3578,8 @@ fn render_shortcut_hint(label: &str, appearance: &Appearance) -> Box<dyn Element
         appearance.ui_font_family(),
         GROUP_HEADER_FONT_SIZE,
     )
-        .with_color(theme.sub_text_color(theme.background()).into())
-        .finish()
+    .with_color(theme.sub_text_color(theme.background()).into())
+    .finish()
 }
 
 /// Row title line with its trailing indicators — the synchronized-inputs link
@@ -4509,8 +4506,7 @@ fn terminal_agent_text(terminal_view: &TerminalView, app: &AppContext) -> Termin
 }
 
 fn terminal_pull_request_badge_label(pull_request_url: &str) -> String {
-    github_pr_badge_label_from_url(pull_request_url)
-        .unwrap_or_else(|| pull_request_url.to_string())
+    github_pr_badge_label_from_url(pull_request_url).unwrap_or_else(|| pull_request_url.to_string())
 }
 
 fn vtab_diff_stats_tokens(line_changes: &GitLineChanges) -> Vec<String> {

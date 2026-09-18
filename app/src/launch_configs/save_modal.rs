@@ -627,17 +627,24 @@ impl LaunchConfigSaveModal {
         let info = match &self.save_state {
             SaveState::Success => header
                 .with_child(
-                    self.render_formatted_text_line(appearance, vec![
-                        FormattedTextFragment::plain_text("Saved successfully to "),
-                        FormattedTextFragment::inline_code(self.file_name.clone().unwrap_or_default()),
-                        FormattedTextFragment::plain_text(".")
-                    ])
+                    self.render_formatted_text_line(
+                        appearance,
+                        vec![
+                            FormattedTextFragment::plain_text("Saved successfully to "),
+                            FormattedTextFragment::inline_code(
+                                self.file_name.clone().unwrap_or_default(),
+                            ),
+                            FormattedTextFragment::plain_text("."),
+                        ],
+                    )
                     .with_padding_bottom(24.)
                     .finish(),
                 )
                 .with_child(link_to_docs),
             SaveState::ConfirmOverwrite => header.with_child(
-                self.render_formatted_text_line(appearance, vec![
+                self.render_formatted_text_line(
+                    appearance,
+                    vec![
                     FormattedTextFragment::plain_text(
                         "A launch configuration named ".to_string(),
                     ),
@@ -648,7 +655,8 @@ impl LaunchConfigSaveModal {
                         " already exists. Overwrite it with your current windows, tabs, and panes?"
                             .to_string(),
                     ),
-                ])
+                ],
+                )
                 .with_padding_bottom(24.)
                 .finish(),
             ),
@@ -662,7 +670,8 @@ impl LaunchConfigSaveModal {
             ),
             SaveState::NotSaved => {
                 let mut text = "This will save your current configuration of windows, tabs \
-                and panes to a file so you can easily open it again".to_string();
+                and panes to a file so you can easily open it again"
+                    .to_string();
                 if self.open_modal_keybinding_str.is_empty() {
                     text.push('.');
                 } else {
@@ -670,16 +679,23 @@ impl LaunchConfigSaveModal {
                 }
                 header
                     .with_child(
-                        self.render_formatted_text_line(appearance, vec![
-                            FormattedTextFragment::plain_text(text)
-                        ]).finish()
+                        self.render_formatted_text_line(
+                            appearance,
+                            vec![FormattedTextFragment::plain_text(text)],
+                        )
+                        .finish(),
                     )
                     .with_child(
-                        self.render_formatted_text_line(appearance, vec![
-                            FormattedTextFragment::plain_text("\nThe YAML file is saved to "),
-                            FormattedTextFragment::inline_code(home_relative_path(&launch_configs_dir())),
-                            FormattedTextFragment::plain_text("."),
-                        ])
+                        self.render_formatted_text_line(
+                            appearance,
+                            vec![
+                                FormattedTextFragment::plain_text("\nThe YAML file is saved to "),
+                                FormattedTextFragment::inline_code(home_relative_path(
+                                    &launch_configs_dir(),
+                                )),
+                                FormattedTextFragment::plain_text("."),
+                            ],
+                        )
                         .with_padding_bottom(24.)
                         .finish(),
                     )
@@ -776,8 +792,7 @@ impl TypedActionView for LaunchConfigSaveModal {
                     self.try_save_launch_config(false, ctx);
                 }
             }
-            LaunchConfigSaveAction::Overwrite =>
-            {
+            LaunchConfigSaveAction::Overwrite => {
                 #[cfg(feature = "local_fs")]
                 self.try_save_launch_config(true, ctx);
             }

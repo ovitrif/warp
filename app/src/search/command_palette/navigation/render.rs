@@ -184,8 +184,9 @@ fn render_prompt_udi(snapshot: &PromptSnapshot, appearance: &Appearance) -> Box<
 
 fn palette_chip_value_text(kind: &ContextChipKind, value: &ChipValue) -> String {
     match kind {
-        ContextChipKind::GithubPullRequest => github_pr_badge_label_from_url(&value.to_string())
-            .unwrap_or_else(|| value.to_string()),
+        ContextChipKind::GithubPullRequest => {
+            github_pr_badge_label_from_url(&value.to_string()).unwrap_or_else(|| value.to_string())
+        }
         _ => value.to_string(),
     }
 }
