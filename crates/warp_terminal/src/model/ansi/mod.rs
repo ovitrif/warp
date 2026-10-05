@@ -39,6 +39,7 @@ use crate::model::completions::{ShellCompletion, ShellCompletionUpdate};
 use crate::model::escape_sequences::C0;
 use crate::model::index::VisibleRow;
 use crate::model::iterm_image::parse_iterm_image_metadata;
+use crate::model::pointer_shape::{PointerShapeRequest, format_query_reply};
 use crate::model::{KeyboardModes, KeyboardModesApplyBehavior};
 
 /// Marks an OSC as one that is sent by Warp logic registered in the shell.
@@ -986,6 +987,25 @@ where
                 match params[2] {
                     b"?" => self.handler.clipboard_load(*clipboard, terminator),
                     base64 => self.handler.clipboard_store(*clipboard, base64),
+                }
+            }
+
+            // OSC 22: Mouse pointer shape.
+            // Format: OSC 22 ; [=|>|<|?]<comma-separated shape names> ST
+            // Reference: https://sw.kovidgoyal.net/kitty/pointer-shapes/
+            b"22" => {
+                let payload = params.get(1).copied().unwrap_or_default();
+                let Ok(payload) = str::from_utf8(payload) else {
+                    return unhandled(params);
+                };
+                match PointerShapeRequest::parse(payload) {
+                    Some(PointerShapeRequest::Op(op)) => self.handler.pointer_shape(op),
+                    Some(PointerShapeRequest::Query(names)) => {
+                        let report = self.handler.pointer_shape_report();
+                        let reply = format_query_reply(&names, report, terminator);
+                        let _ = writer.write_all(reply.as_bytes());
+                    }
+                    None => unhandled(params),
                 }
             }
 

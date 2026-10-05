@@ -10,6 +10,7 @@ use warpui_core::color::ColorU;
 use super::*;
 use crate::model::ansi::InputBufferValue;
 use crate::model::index::VisibleRow;
+use crate::model::pointer_shape::{PointerShape, PointerShapeOp, PointerShapeReport};
 use crate::model::selection::ScrollDelta;
 use crate::model::session::SessionId;
 
@@ -25,6 +26,7 @@ struct MockHandler {
     identity_reported: bool,
     d_proto_hooks: Vec<DProtoHook>,
     pluggable_notifications: Vec<(Option<String>, String)>,
+    pointer_shape_ops: Vec<PointerShapeOp>,
     hyperlink_events: Vec<Option<Hyperlink>>,
     cwd_updates: Vec<String>,
     registered_session_ids: HashSet<SessionId>,
@@ -256,6 +258,17 @@ impl Handler for MockHandler {
         self.pluggable_notifications.push((title, body));
     }
 
+    fn pointer_shape(&mut self, op: PointerShapeOp) {
+        self.pointer_shape_ops.push(op);
+    }
+
+    fn pointer_shape_report(&mut self) -> PointerShapeReport {
+        PointerShapeReport {
+            current: Some(PointerShape::Pointer),
+            grabbed: false,
+        }
+    }
+
     fn set_hyperlink(&mut self, hyperlink: Option<Hyperlink>) {
         self.hyperlink_events.push(hyperlink);
     }
@@ -303,6 +316,7 @@ impl Default for MockHandler {
             identity_reported: false,
             d_proto_hooks: Vec::new(),
             pluggable_notifications: Vec::new(),
+            pointer_shape_ops: Vec::new(),
             hyperlink_events: Vec::new(),
             cwd_updates: Vec::new(),
             registered_session_ids: HashSet::new(),
@@ -1596,4 +1610,56 @@ fn osc_completions_replacement_span_forwards_out_of_range_pair() {
     let (_, handler) = parse_bytes(payload.as_bytes());
 
     assert_eq!(handler.replacement_spans, vec![(usize::MAX, 1)]);
+}
+
+#[test]
+fn parse_osc22_set_with_bel_and_st_terminators() {
+    let (_, handler) = parse_bytes(b"\x1b]22;pointer\x07\x1b]22;text\x1b\\");
+
+    assert_eq!(
+        handler.pointer_shape_ops,
+        vec![
+            PointerShapeOp::Set(vec![PointerShape::Pointer]),
+            PointerShapeOp::Set(vec![PointerShape::Text]),
+        ]
+    );
+}
+
+#[test]
+fn parse_osc22_empty_name_resets_and_unknown_name_is_ignored() {
+    let (_, handler) = parse_bytes(b"\x1b]22;\x1b\\\x1b]22;bogus\x07");
+
+    assert_eq!(handler.pointer_shape_ops, vec![PointerShapeOp::Set(vec![])]);
+}
+
+#[test]
+fn parse_osc22_push_and_pop() {
+    let (_, handler) = parse_bytes(b"\x1b]22;>wait,grab\x07\x1b]22;<\x07");
+
+    assert_eq!(
+        handler.pointer_shape_ops,
+        vec![
+            PointerShapeOp::Push(vec![PointerShape::Wait, PointerShape::Grab]),
+            PointerShapeOp::Pop,
+        ]
+    );
+}
+
+#[test]
+fn osc22_query_replies_with_the_request_terminator() {
+    let mut parser = Processor::new();
+    let mut handler = MockHandler::default();
+    let mut reply = Vec::new();
+
+    parser.parse_bytes(&mut handler, b"\x1b]22;?pointer,bogus\x1b\\", &mut reply);
+    assert_eq!(reply, b"\x1b]22;1,0\x1b\\");
+
+    reply.clear();
+    parser.parse_bytes(
+        &mut handler,
+        b"\x1b]22;?__current__,__grabbed__\x07",
+        &mut reply,
+    );
+    assert_eq!(reply, b"\x1b]22;pointer,0\x07");
+    assert!(handler.pointer_shape_ops.is_empty());
 }

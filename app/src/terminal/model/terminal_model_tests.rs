@@ -8,6 +8,7 @@ use warp_completer::completer::MatchedSuggestion;
 use warp_core::command::ExitCode;
 use warp_core::features::FeatureFlag;
 use warp_terminal::model::ansi::ClearMode;
+use warp_terminal::model::pointer_shape::PointerShape;
 use warpui::r#async::executor::Background;
 use warpui::text::{SelectionType, str_to_byte_vec};
 
@@ -108,6 +109,57 @@ fn take_typeahead_for_input_is_none_when_typeahead_is_empty() {
 
     assert_eq!(model.take_typeahead_for_input(), None);
 }
+fn running_output_position(model: &TerminalModel) -> WithinModel<Point> {
+    WithinModel::BlockList(WithinBlock::new(
+        Point { row: 0, col: 0 },
+        model.block_list().active_block_index(),
+        GridType::Output,
+    ))
+}
+
+#[test]
+fn program_pointer_shape_lasts_only_while_the_command_runs() {
+    let mut model = TerminalModel::mock(None, None);
+    model.simulate_long_running_block("sleep 5", "");
+    let position = running_output_position(&model);
+    assert_eq!(model.program_pointer_shape_at(&position), None);
+
+    model.process_bytes("\x1b]22;pointer\x07");
+    assert_eq!(
+        model.program_pointer_shape_at(&position),
+        Some(PointerShape::Pointer)
+    );
+
+    model.finish_block();
+    assert_eq!(model.program_pointer_shape_at(&position), None);
+    assert_eq!(
+        model.program_pointer_shape_at(&running_output_position(&model)),
+        None
+    );
+}
+
+#[test]
+fn program_pointer_shape_on_the_alt_screen_is_dropped_on_exit() {
+    let mut model = TerminalModel::mock(None, None);
+    model.simulate_long_running_block("vim", "");
+    model.enter_alt_screen(true);
+    model.process_bytes("\x1b]22;text\x1b\\");
+
+    let alt_position = WithinModel::AltScreen(Point { row: 0, col: 0 });
+    assert_eq!(
+        model.program_pointer_shape_at(&alt_position),
+        Some(PointerShape::Text)
+    );
+    assert_eq!(
+        model.program_pointer_shape_at(&running_output_position(&model)),
+        None
+    );
+
+    model.exit_alt_screen(true);
+    model.enter_alt_screen(true);
+    assert_eq!(model.program_pointer_shape_at(&alt_position), None);
+}
+
 #[test]
 fn cloud_mode_deferred_terminal_model_starts_view_pending() {
     let mut model = TerminalModel::new_for_cloud_mode_shared_session_viewer(

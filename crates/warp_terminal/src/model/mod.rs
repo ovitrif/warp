@@ -23,6 +23,7 @@ pub mod iterm_image;
 pub mod kitty;
 mod mode;
 pub mod mouse;
+pub mod pointer_shape;
 pub mod secrets;
 pub mod selection;
 pub mod session;
