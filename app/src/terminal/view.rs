@@ -38,6 +38,7 @@ mod passive_suggestions;
 mod pending_user_query;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) mod plugin_instructions_block;
+mod pointer_shape;
 pub mod rich_content;
 mod shared_session;
 mod shell_terminated_banner;
@@ -2611,6 +2612,10 @@ pub struct TerminalView {
 
     /// Highlighted link (could be url or file path) on the screen.
     highlighted_link: HighlightedLinkOption,
+    /// Where the mouse last was over a terminal grid, or `None` when it is elsewhere.
+    last_grid_hover: Option<WithinModel<Point>>,
+    /// The cursor currently applied because the running program requested a pointer shape.
+    program_pointer_cursor: Option<Cursor>,
     open_grid_link_tool_tip: Option<GridHighlightedLink>,
 
     open_rich_content_link_tool_tip: Option<RichContentLinkTooltipInfo>,
@@ -4403,6 +4408,8 @@ impl TerminalView {
             pending_agent_scroll_target: None,
             find_link_tx,
             highlighted_link: HighlightedLinkOption::default(),
+            last_grid_hover: None,
+            program_pointer_cursor: None,
             last_hover_fragment_boundary: None,
             bootstrap_start: None,
             is_login_shell_bootstrapped: false,
@@ -12334,7 +12341,7 @@ impl TerminalView {
                 }
             }
             ModelEvent::CursorBlinkingChange(_) => {}
-            ModelEvent::MouseCursorDirty => {}
+            ModelEvent::MouseCursorDirty => self.sync_program_pointer_shape(ctx),
             ModelEvent::Bell => {
                 if *TerminalSettings::as_ref(ctx).use_audible_bell
                     && let Err(e) = AudibleBell::as_ref(ctx).ring()
@@ -27588,7 +27595,11 @@ impl TypedActionView for TerminalView {
             MaybeLinkHover {
                 position,
                 from_editor,
-            } => self.maybe_link_hover(position, *from_editor, ctx),
+            } => {
+                self.last_grid_hover = *position;
+                self.maybe_link_hover(position, *from_editor, ctx);
+                self.sync_program_pointer_shape(ctx);
+            }
             MaybeHoverSecret { secret_handle } => self.maybe_hover_secret(*secret_handle, ctx),
             MaybeDismissToolTip { from_keybinding } => {
                 if !self.dismiss_tooltips(ctx) && *from_keybinding {

@@ -11,6 +11,7 @@ use crate::model::image_map::StoredImageMetadata;
 use crate::model::index::VisibleRow;
 use crate::model::iterm_image::{ITermImage, ITermImageMetadata};
 use crate::model::kitty::{KittyAction, KittyChunk, KittyResponse};
+use crate::model::pointer_shape::{PointerShapeOp, PointerShapeReport};
 use crate::model::selection::ScrollDelta;
 use crate::model::session::SessionId;
 use crate::model::{KeyboardModes, KeyboardModesApplyBehavior};
@@ -411,4 +412,12 @@ pub trait Handler {
     /// - OSC 9: Simple notification with just a body (iTerm2/Windows Terminal style)
     /// - OSC 777: Notification with title and body (urxvt style)
     fn pluggable_notification(&mut self, _title: Option<String>, _body: String) {}
+
+    /// Applies an OSC 22 request to set, push or pop the mouse pointer shape.
+    fn pointer_shape(&mut self, _op: PointerShapeOp) {}
+
+    /// Reports the state that OSC 22 queries can ask about.
+    fn pointer_shape_report(&mut self) -> PointerShapeReport {
+        PointerShapeReport::default()
+    }
 }

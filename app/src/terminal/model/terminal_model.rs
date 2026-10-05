@@ -20,6 +20,9 @@ use warp_core::semantic_selection::SemanticSelection;
 use warp_errors::report_error;
 pub use warp_terminal::event::ExitReason;
 use warp_terminal::event::validate_and_decode_in_band_command_output_to_bytes;
+use warp_terminal::model::pointer_shape::{
+    PointerShape, PointerShapeOp, PointerShapeReport, PointerShapeStack,
+};
 pub use warp_terminal::model::{BlockIndex, RangeInModel};
 use warp_terminal::model::{KeyboardModes, KeyboardModesApplyBehavior};
 use warpui::AppContext;
@@ -388,6 +391,11 @@ pub struct TerminalModel {
     pub blocklist_has_been_cleared: bool,
 
     alt_screen_active: bool,
+
+    /// Mouse pointer shapes that the running command set with OSC 22 on the main screen.
+    main_pointer_shapes: PointerShapeStack,
+    /// Mouse pointer shapes that the running program set with OSC 22 on the alternate screen.
+    alt_pointer_shapes: PointerShapeStack,
 
     /// Stack of saved window titles. When a title is popped from this stack, the `title` for the
     /// term is set.
@@ -1087,6 +1095,8 @@ impl TerminalModel {
             lifecycle_coordinator: BlockLifecycleCoordinator::default(),
             blocklist_has_been_cleared: false,
             alt_screen_active: false,
+            main_pointer_shapes: PointerShapeStack::default(),
+            alt_pointer_shapes: PointerShapeStack::default(),
             title_stack: Vec::new(),
             title: None,
             custom_title: None,
@@ -2018,6 +2028,41 @@ impl TerminalModel {
         self.alt_screen_active
     }
 
+    /// The pointer shape the running program requested for `position`, if it is in control there.
+    ///
+    /// A program controls the alternate screen while it is active, and the output of the command
+    /// that is currently running in the block list.
+    pub fn program_pointer_shape_at<T>(&self, position: &WithinModel<T>) -> Option<PointerShape> {
+        match position {
+            WithinModel::AltScreen(_) if self.alt_screen_active => {
+                self.alt_pointer_shapes.current()
+            }
+            WithinModel::BlockList(within_block)
+                if !self.alt_screen_active
+                    && within_block.grid == GridType::Output
+                    && within_block.block_index == self.block_list.active_block_index()
+                    && self.block_list.active_block().is_executing() =>
+            {
+                self.main_pointer_shapes.current()
+            }
+            WithinModel::AltScreen(_) | WithinModel::BlockList(_) => None,
+        }
+    }
+
+    fn clear_main_pointer_shapes(&mut self) {
+        if !self.main_pointer_shapes.is_empty() {
+            self.main_pointer_shapes.clear();
+            self.event_proxy.send_app_event(Event::MouseCursorDirty);
+        }
+    }
+
+    fn clear_alt_pointer_shapes(&mut self) {
+        if !self.alt_pointer_shapes.is_empty() {
+            self.alt_pointer_shapes.clear();
+            self.event_proxy.send_app_event(Event::MouseCursorDirty);
+        }
+    }
+
     pub fn set_pending_shell_launch_data(&mut self, shell_launch_data: ShellLaunchData) {
         self.active_shell_launch_data = Some(shell_launch_data.clone());
         self.pending_shell_launch_data = Some(shell_launch_data);
@@ -2205,6 +2250,7 @@ impl TerminalModel {
         self.alt_screen_mut().grid_handler_mut().evict_all_images();
 
         self.alt_screen_active = false;
+        self.clear_alt_pointer_shapes();
 
         if restore_cursor {
             self.block_list.active_block_mut().restore_cursor_position();
@@ -2373,6 +2419,7 @@ impl TerminalModel {
         // remain in the alt screen after disconnect when we should return to
         // the blocklist (for the local shell).
         self.exit_alt_screen(true);
+        self.clear_main_pointer_shapes();
 
         let block_id = data.next_block_id.to_string();
         self.block_list
@@ -2421,6 +2468,7 @@ impl TerminalModel {
     }
 
     fn apply_preexec(&mut self, data: PreexecValue) {
+        self.clear_main_pointer_shapes();
         self.block_list.apply_preexec_to_active(data);
         self.emit_handler_event(HandlerEvent::Preexec);
     }
@@ -2814,6 +2862,8 @@ impl ansi::Handler for TerminalModel {
     fn reset_state(&mut self) {
         self.title_stack = Vec::new();
         self.title = None;
+        self.clear_main_pointer_shapes();
+        self.clear_alt_pointer_shapes();
 
         self.alt_screen.reset_state();
         self.block_list.reset_state();
@@ -3675,6 +3725,31 @@ impl ansi::Handler for TerminalModel {
         _metadata: &mut HashMap<u32, StoredImageMetadata>,
     ) -> Option<KittyResponse> {
         delegate!(self.handle_completed_kitty_action(action, &mut self.image_id_to_metadata))
+    }
+
+    fn pointer_shape(&mut self, op: PointerShapeOp) {
+        let stack = if self.alt_screen_active {
+            &mut self.alt_pointer_shapes
+        } else {
+            &mut self.main_pointer_shapes
+        };
+        let previous = stack.current();
+        stack.apply(op);
+        if stack.current() != previous {
+            self.event_proxy.send_app_event(Event::MouseCursorDirty);
+        }
+    }
+
+    fn pointer_shape_report(&mut self) -> PointerShapeReport {
+        let stack = if self.alt_screen_active {
+            &self.alt_pointer_shapes
+        } else {
+            &self.main_pointer_shapes
+        };
+        PointerShapeReport {
+            current: stack.current(),
+            grabbed: self.is_term_mode_set(TermMode::MOUSE_MODE),
+        }
     }
 
     fn pluggable_notification(&mut self, title: Option<String>, body: String) {
